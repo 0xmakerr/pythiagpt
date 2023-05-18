@@ -1,0 +1,1520 @@
+﻿Introduction
+Pyth Network is an oracle that publishes financial market data to multiple blockchains. Our market data is contributed by over 80 first-party publishers, including some of the biggest exchanges and market making firms in the world. We offer price feeds for a number of different asset classes, including US equities, commodities, and cryptocurrencies. Each price feed publishes a robust aggregate of publisher prices that updates multiple times per second.
+Price feeds are available on multiple blockchains and can also be used in off-chain applications. Pyth offers two sets of price feeds for different applications:
+* ​Solana Price Feeds are available in mainnet for Solana
+* ​Pythnet Price Feeds are available in mainnet for most EVM chains, including Ethereum, BNB, Avalanche, and more. These feeds are also available in Aptos mainnet and will be coming soon to Cosmos chains and other ecosystems.
+Application developers can follow the links above to learn more about how to consume Pyth Network data for the relevant ecosystem.
+
+
+Solana Price Feeds
+Solana Price Feeds continuously stream price updates to the Solana blockchain. Each price feed is stored in a separate Solana account. Application developers can simply pass the relevant account to their solana program, then deserialize the data in the accounts to read the current value of the feed. Pyth provides a Solana SDK to assist with this process.
+Before getting started with the SDK, please read Using Price Feeds to understand how Pyth price feeds are represented, and to learn best practices to use Pyth prices safely and correctly.
+
+
+Using Price Feeds
+Best Practices for using Pyth Price Feeds
+This page provides some technical details about Pyth price feeds that are necessary to use them safely and correctly. Please read this page before using Pyth price feeds in your application.
+Price Feed Account IDs
+Each Pyth Network price feed is stored in a Solana account and is uniquely identified by its corresponding Solana account key. Price feeds have different ids in mainnet than in testnet or devnet. The full list of price feeds available on Solana is listed on the pyth.network website under the "mainnet-beta" tag. The price feed ids page lists the id of each available price feed. To use a price feed on-chain, look up its id using this page, then store the feed id in your program. You should then pass in the corresponding Solana account to any instruction that requires the current price and validate in your program that the account key matches the stored price feed id.
+Fixed-Point Numeric Representation
+Price feeds represent numbers in a fixed-point format. The same exponent is used for both the price and confidence interval. The integer representation of these values can be computed by multiplying by 10^exponent
+
+
+Price Availability
+Sometimes, Pyth will not be able to provide a current price for a product. This situation can happen for various reasons. For example, US equity markets only trade during certain hours, and outside those hours, it's not clear what an equity's price is. Alternatively, a network outage (at the internet level, blockchain level, or at multiple data providers) may prevent the protocol from producing new price updates. (Such outages are unlikely, but integrators should still be prepared for the possibility.) In such cases, Pyth may return a stale price for the product.
+Integrators should be careful to avoid accidentally using a stale price. The SDKs guard against this failure mode by incorporating a staleness check by default. Querying the current price will fail if too much time has elapsed since the last update. The SDKs expose this failure condition in an idiomatic way: for example, the Rust SDK may return None, and our Solidity SDK may revert the transaction. The SDK provides a sane default for the staleness threshold, but users may configure it to suit their use case.
+Market Hours
+Pyth price feeds follow the traditional market hours of each asset classes
+
+
+Latency
+Developers integrating Pyth Network price feeds should account for the difference in latency between on-chain oracles and off-chain sources (e.g. centralized exchanges). Although Pyth Network is designed with low latency in mind, no on-chain oracle can match the latency of an off-chain source due to the added overhead for consensus and security. The threat model for integrating protocols should assume that adversaries see price changes a short time before the protocol does. In this threat model, protocol designers should avoid situations where a Pyth price update must race against an adversary's transaction. Adversaries are highly likely to win these races, as they have a head start, and sophisticated adversaries can additionally optimize their network latencies or pay miners for priority blockspace.
+This situation is analogous to market making in traditional finance. Market makers place resting orders on exchanges with the hope of earning the bid/ask spread. When the “true price” moves, these market makers get picked off by adverse “smart flow” that is faster than they are. The smart flow is balanced by two-way flow, that is, people wanting to trade for other reasons besides a price change.
+This analogy suggests two simple solutions to races:
+1. 1.
+Configure protocol parameters to balance the losses from smart flow against the gains from two-way flow. Market makers in traditional finance implement this approach by offering a bid/ask spread and limited liquidity. The limited liquidity caps the losses to smart flow, while still earning profits from the two-way flow. A successful market maker tunes the spread and offered liquidity to limit adverse selection from smart traders while still interacting with two-way flow.
+2. 2.
+Give the protocol a "last look" to decide which transactions to accept. In traditional finance, some exchanges give market makers a chance to walk back a trade offer after someone else has requested it. Protocols can implement this technique by splitting transactions into two parts: a request and a fulfillment. In the first transaction, the user requests to perform an action. In the second transaction, the protocol chooses whether or not to fulfill the user's request; this step can be implemented as a permissionless operation. The protocol can require a short delay between the two transactions, and the user's request gets fulfilled at the Pyth price as of the second transaction. This technique gives the protocol extra time to observe price changes, giving it a head start in the latency race.
+Confidence Intervals
+At every point in time, Pyth publishes both a price and a confidence interval for each product. For example, Pyth may publish the current price of bitcoin as $50000 ± $10. Pyth publishes a confidence interval because, in real markets, there is no one single price for a product. For example, at any given time, bitcoin trades at different prices at different venues around the world. While these prices are typically similar, they can diverge for a number of reasons, such as when a cryptocurrency exchange blocks withdrawals on an asset. If this happens, prices diverge because arbitrageurs can no longer bring prices across exchanges into line. Alternatively, prices on different venues can differ simply because an asset is highly volatile at a particular point in time. At such times, bid/ask spreads tend to be wider, and trades on different markets at around the same time tend to occur at a wider range of prices.
+Pyth represents these possibly-different prices by giving its users a probability distribution over price instead of just a single price. Pyth models the price according to a Laplace distribution centered on the Pyth aggregate price with a standard deviation equal to the confidence interval (the scale parameter b of the Laplace distribution is equal to the standard deviation divided by the square root of 2). The Laplace distribution contains ~95% of the probability mass within ~2.12 standard deviations (~3 times the scale parameter). If markets are behaving normally, then the confidence interval will be tight -- typically much less than 1% of the price -- and the Laplace distribution will be highly peaked. However, at unusual times, the confidence interval can widen out dramatically.
+When consuming Pyth prices, we recommend using the confidence interval to protect your users from these unusual market conditions. The simplest way to do so is to use Pyth's confidence interval to compute a range in which the true price (probably) lies. You obtain this range by adding and subtracting a multiple of the confidence interval to the Pyth price; the bigger the multiple, the more likely the price lies within that range. We recommend considering a multiple of 2.12, which as mentioned above gives you a 95% probability that the true price is within the range (assuming Laplace distribution estimates are correct). Then, select the most conservative price within that range for every action. In other words, your protocol should minimize state changes during times of large price uncertainty.
+This principle is common sense. Imagine that you are lending money to a friend, and your friend pledges a bitcoin as collateral. Also imagine that Pyth says the bitcoin price is $50000 +- $1000. (Note that $1000 is an unusually large confidence interval for bitcoin; the confidence interval is typically ~$50 dollars). You therefore calculate that the true price is between $47880 and $52120 using the multiply by 3 rule from above. When originating the loan, you would value the bitcoin at $47880. The lower price is conservative in this instance because it limits the amount of borrowing that is possible while the price is uncertain. On the other hand, once the loan has been issued, you would value the bitcoin at $52120. The higher price is conservative, as it prevents you from liquidating your friend purely due to increased price uncertainty.
+The same principle would apply if you wrote a derivative contract. If someone wants to open a derivative contract with you, you would value their collateral at the lower price. However, if you were deciding whether someone's margin limits were violated, you would value their collateral at the higher price. If a contract needs to be settled at a price, you could take approaches such as the following:
+   1. 1.
+Using Pyth's exponential moving average price, which represents estimates of the average price of the asset over a specified time period (e.g., over the past 1 hour). The exponential moving average price is computed such that it lessens the influence of prices with wide confidence intervals. You may find more details in EMA Price Aggregation.
+   2. 2.
+Using the aggregate price, which is Pyth's best estimate of the price at a single point in time. The quality of this estimate depends on the width of the confidence interval at settlement time and on occasion, it may be imprecise. However, it is the best you can do with Pyth data if you need a single price at that exact point in time.
+   3. 3.
+Defining the contract to depend on confidence. For example, you could create an option that refunds the option premium to the buyer (so both sides of the transaction are even) if the strike price is within the confidence interval at settlement time. You could also create a contract that delayed settlement until the confidence interval was sufficiently small. If you choose this second option, you should ensure that your contract is guaranteed to eventually settle even if the confidence interval never narrows.
+Solana SDKs
+Consume Pyth prices in Solana programs.
+We provide one SDK for Solana on-chain programs to use Pyth prices:
+The pyth-sdk-solana crate can be used to consume Pyth prices inside Solana programs written in Rust.
+Price Feed IDs
+The price feeds available on each Solana network are listed on the following pages:
+      * Devnet
+      * Testnet
+      * Mainnet-Beta
+Pythnet Price Feeds
+Pythnet price feeds use an on-demand price update model, where users are responsible for posting price updates on-chain when needed. Please see On-Demand Updates to learn more about this model and what this means for integrators.
+In the on-demand model, developers should integrate Pyth into both their on-chain and off-chain code:
+      1. 1.
+      2. On-chain programs should read prices from the Pyth program deployed on the same chain
+      3. 2.
+      4. Off-chain frontends and jobs should include Pyth price updates alongside (or within) their application-specific transactions.
+Pyth provides ecosystem-specific SDKs to assist with both the on- and off-chain pieces of the integration. The easiest way to use Pyth price feeds is to integrate the appropriate SDKs into your application. Before getting started with an SDK, please read Using Price Feeds to understand how Pyth price feeds are represented, and to learn best practices to use Pyth prices safely and correctly.
+On-Demand Updates
+Pyth Network uses an on-demand price update model that is slightly different from other oracles you may be more familiar with. Most oracles today use a push model, where the oracle runs an off-chain process that continuously sends transactions to update an on-chain price. In contrast, Pyth Network does not operate an off-chain process that pushes prices on-chain. Instead, it delegates this work to Pyth Network users. Pyth price updates are created on Pythnet and streamed off-chain via the Wormhole Network, a cross-chain messaging protocol. These updates are signed such that the Pyth on-chain program can verify their authenticity. Updating the on-chain price is a permissionless operation: anyone can submit a valid Wormhole message to the Pyth contract to update the price. Typically, users of Pyth Network prices will submit a single transaction that simultaneously updates the price and uses it in a downstream application.
+On-chain prices can only move forward in time. If a user submits a Wormhole message with a less recent price the Pyth program will not fail but will also not update the price. This in particular means that there's no guarantee that when a user atomically updates the price and then interacts with an application powered by Pyth, the price that the application will read will be equal to the price the user submitted.
+You can find an in-depth explanation from one of our contributors, Jayant: Explaining the Pyth Network On-Demand Oracle Model: Pyth Tutorials​
+Advantages
+The on-demand model has several benefits over the push model:
+      * Gas efficiency -- On-chain prices are only updated when they are needed. In the push model, the oracle can waste gas by submitting price updates that no one will use. Furthermore, the cost of updating the oracle is distributed amongst its users instead of borne entirely by Pyth Network. The cost of maintaining the on-chain prices can be substantial for a single entity, but is minimal when spread across all users. Many of the subsequent advantages follow from the fact that Pyth Network does not have to pay gas fees for every single update.
+      * High update frequency -- Pyth Network price feeds update once per second, which is faster than the blocktime of most blockchains. Such frequent updates would not be possible if every price had to be pushed on-chain. However, push oracles typically update even less frequently than the blocktime, because it is simply too expensive to update feeds more frequently.
+      * Low latency -- Every transaction can use a recent off-chain price, instead of relying on the last on-chain update pushed by the oracle itself.
+      * More price feeds -- Pyth Network can scale to thousands of price feeds due to its gas efficiency. The oracle incurs no added costs for each additional feed, and users pay gas costs for new feeds only when those feeds are used on-chain.
+      * Reliable in volatile conditions -- Push oracles can fail to land price updates in volatile market conditions. In these conditions, the oracle competes with other more valuable transactions (such as DEX trades or liquidations) for bandwidth, and often cannot pay enough to land price updates. This problem does not occur in the on-demand model, as Pyth price updates are incorporated into the valuable transactions themselves.
+      * Common infrastructure -- Every component of Pyth Network is shared across blockchains except for the contract deployed on the destination chain. These shared components can therefore be built with high reliability and accuracy targets, benefitting every chain the oracle is deployed on. This approach also allows Pyth Network to rapidly launch on new blockchains and ecosystems with all of the existing price feeds.
+      * Sustainable -- The Pyth Network protocol has been designed to allow for the optional enablement of data fees to update the state of an on-chain price feed. These fees will compensate data providers for their effort and motivates them to contribute additional data. Oracles without such a mechanism are inherently unsustainable and likely to fail if the operating organization runs out of money.
+Integration
+Developers integrating with Pyth Network should build their application to submit the necessary price updates on their users' behalf. For example, if you need the BTC/USD price on-chain, then your frontend should submit the BTC/USD Pyth price update in every transaction that needs it. The Pyth Network SDKs cover both parts of this integration -- frontend and contract -- and are designed to simplify this process. These SDKs are blockchain-specific and are described in more detail in the subsequent sections of this documentation. Developers should also host an instance of the price service, which is a convenient wrapper around the Wormhole Network that the frontend SDKs use to fetch on-demand updates.
+Fees
+The Pyth Network protocol has been designed to allow for the optional enablement of data fees in order to update the state of an on-chain price feeds. The ongoing existence of and size of the fee will be determined by governance on a per-blockchain basis; until governance is live, the fee will be 1 of the smallest denomination of the blockchain's native token (e.g., 1 wei on Ethereum). The fees collected by the protocol will go toward compensating data providers and possibly other uses as determined by governance.
+Note that protocols integrating with Pyth Network can pass these fees along to their users. Whenever a user submits a transaction that requires a price update, that transaction can also include payment of the necessary fee. This approach charges end users in proportion to their usage of Pyth Network data. The Pyth Network SDKs use this approach by default and include all of the necessary logic for computing and sending the fee along with every transaction.
+In addition to update fees, end users ultimately bear the gas cost of updating the Pyth Network price feeds, which means that their transactions cost a little more than they would in the push model. However, the cost of a single price update is minimal, so the combined gas and update fee should only be a small portion of the overall transaction cost for the end user.
+Adversarial selection
+On-demand price updates gives users of Pyth Network some ability to select which price to use in a transaction. This ability is highly circumscribed by various constraints: on-chain prices must move forward in time and cannot be from too far in the past. However, users can still chose any price update that satisfies these constraints. This ability is functionally equivalent to latency: it allows users to see the price in the future before using a price from the past.
+The simplest way to guard against this attack vector is to incorporate a staleness check to ensure that the price used in a transaction is sufficiently recent. The Pyth Network SDKs include this check by default, where queries for the price will fail if the on-chain time differs from the price's timestamp by more than a threshold amount. The default threshold is set per-chain, but is typically around 1 minute. Highly latency-sensitive protocols may wish to reduce this threshold to a few seconds to better suit their needs. Please also see the section on latency mitigations for additional ideas on how latency-sensitive protocols can minimize the impact of oracle latency.
+
+
+Pyth on EVM
+Consume Pyth Network prices in EVM applications
+On-chain EVM programs can use the Solidity SDK to read Pyth prices. The off-chain portion of the application can use pyth-evm-js to generate price update transactions. This repository's Quickstart includes an example of both the on- and off-chain code necessary to integrate with Pyth.
+Example - Oracle Swap
+​Oracle Swap is an end-to-end example application that uses Pyth Network. This application is an AMM that allows users to swap two assets at the Pyth-provided exchange rate. This application contains both the contract, and the frontend to interact with the contract.
+EVM price pusher
+​Pyth EVM price pusher is a service that regularly pushes price updates to the on-chain Pyth contract. Protocols can run this service to push regular updates to the on-chain Pyth price based on various conditions, such as a minimum update frequency, or a price change threshold. This service is useful for protocols that already depend on regular push updates and want to simplify migrating to Pyth. Please see the github readme for additional information on this service.
+In addition, you can find an in-depth explanation from one of our contributors, Ali: How to Build with Pyth Data on EVM Chains (with Pusher): Pyth Tutorials​
+Networks
+Pyth is currently available on the following EVM-based chains:
+Mainnet
+Network
+	Contract address
+	Avalanche
+	0x4305FB66699C3B2702D4d05CF36551390A4c69C6
+	Fantom
+	0xff1a0f4744e8582DF1aE09D5611b887B6a12925C
+	Polygon
+	0xff1a0f4744e8582DF1aE09D5611b887B6a12925C
+	BNB
+	0x4D7E825f80bDf85e913E0DD2A2D54927e9dE1594
+	Ethereum
+	0x4305FB66699C3B2702D4d05CF36551390A4c69C6
+	Optimism
+	0xff1a0f4744e8582DF1aE09D5611b887B6a12925C
+	Aurora
+	0xF89C7b475821EC3fDC2dC8099032c05c6c0c9AB9
+	Arbitrum
+	0xff1a0f4744e8582DF1aE09D5611b887B6a12925C
+	Celo
+	0xff1a0f4744e8582DF1aE09D5611b887B6a12925C
+	KCC
+	0xE0d0e68297772Dd5a1f1D99897c581E2082dbA5B
+	Cronos
+	0xE0d0e68297772Dd5a1f1D99897c581E2082dbA5B
+	zkSync Era
+	0xf087c864AEccFb6A2Bf1Af6A0382B0d0f6c5D834
+	EVMOS
+	0x354bF866A4B006C9AF9d9e06d9364217A8616E12
+	Polygon zkEVM
+	0xC5E56d6b40F3e3B5fbfa266bCd35C37426537c65
+	Meter
+	0xbFe3f445653f2136b2FD1e6DdDb5676392E3AF16
+	Conflux eSpace
+	0xe9d69CdD6Fe41e7B621B4A688C5D1a68cB5c8ADc
+	Canto
+	0x98046Bd286715D3B0BC227Dd7a956b83D8978603
+	Testnet
+Network
+	Contract address
+	Goerli (Ethereum testnet)
+	0xff1a0f4744e8582DF1aE09D5611b887B6a12925C
+	Fuji (Avalanche testnet)
+	0xff1a0f4744e8582DF1aE09D5611b887B6a12925C
+	Fantom testnet
+	0xff1a0f4744e8582DF1aE09D5611b887B6a12925C
+	Mumbai (Polygon testnet)
+	0xff1a0f4744e8582DF1aE09D5611b887B6a12925C
+	BNB testnet
+	0xd7308b14BF4008e7C7196eC35610B1427C5702EA
+	Aurora testnet
+	0x4305FB66699C3B2702D4d05CF36551390A4c69C6
+	Optimism Goerli (testnet)
+	0xff1a0f4744e8582DF1aE09D5611b887B6a12925C
+	Celo Alfajores (testnet)
+	0xff1a0f4744e8582DF1aE09D5611b887B6a12925C
+	KCC testnet
+	0x15D35b8985e350f783fe3d95401401E194ff1E6f
+	Cronos testnet
+	0xBAEA4A1A2Eaa4E9bb78f2303C213Da152933170E
+	Arbitrum Goerli (testnet)
+	0x939C0e902FF5B3F7BA666Cc8F6aC75EE76d3f900
+	zkSync Era Goerli (testnet)
+	0xC38B1dd611889Abc95d4E0a472A667c3671c08DE
+	Base Goerli (testnet)
+	0x5955C1478F0dAD753C7E2B4dD1b4bC530C64749f
+	Shimmer testnet
+	0xA2aa501b19aff244D90cc15a4Cf739D2725B5729
+	Chiado (Gnosis testnet)
+	0xdDAf6D29b8bc81c1F0798a5e4c264ae89c16a72B
+	EVMOS testnet
+	0x354bF866A4B006C9AF9d9e06d9364217A8616E12
+	Neon devnet
+	0x2FF312f50689ad279ABb164dB255Eb568733BD6c
+	Polygon zkEVM testnet
+	0xd54bf1758b1C932F86B178F8b1D5d1A7e2F62C2E
+	Canto testnet
+	0xA2aa501b19aff244D90cc15a4Cf739D2725B5729
+	Meter testnet
+	0x5fF5B9039FbD8256864A4460B7EA77093A65B1b5
+	Mantle testnet
+	0xA2aa501b19aff244D90cc15a4Cf739D2725B5729
+	Conflux eSpace testnet
+	0xA2aa501b19aff244D90cc15a4Cf739D2725B5729
+	Pyth on Aptos
+Consume Pyth Network prices in applications on Aptos
+Aptos contracts can update and fetch the Pyth prices using the Pyth Aptos Contract, which has been deployed on Mainnet. The documented source code can be found here.
+Updating Price Feeds
+The mechanism by which price feeds are updated on Aptos is explained here. The pyth-aptos-js package can be used to fetch price feed update data which can be passed to the pyth::update_price on-chain function.
+Networks
+Pyth is currently deployed on Aptos Mainnet and Testnet.
+Addresses
+When deploying contracts using Pyth, the named addresses pyth, wormhole and deployer need to be defined at compile time. These addresses are the same across both Testnet and Mainnet.
+Named Address
+	Value
+	pyth
+	0x7e783b349d3e89cf5931af376ebeadbfab855b3fa239b7ada8f5a92fbea6b387
+	wormhole
+	0x5bc11445584a763c1fa7ed39081f1b920954da14e04b32440cba863d03e19625
+	deployer
+	0xb31e712b26fd295357355f6845e77c888298636609e93bc9b05f0f604049f434
+	deployer and wormhole are implementation details of the Pyth contract: you will not need to interact with these.
+Price Feeds
+Network
+	Available Price Feeds
+	Aptos Testnet
+	https://pyth.network/developers/price-feed-ids#aptos-testnet
+	Aptos Mainnet
+	https://pyth.network/developers/price-feed-ids#aptos-mainnet
+	Pyth on Sui
+Pyth on Sui
+Contents
+      1. 1.
+      2. Background
+      3. 2.
+      4. How to Update and Consume Price Feeds
+      5. 3.
+      6. Examples
+      7. 4.
+      8. Contracts Registry (addresses)
+      9. 5.
+      10. Common Questions how How to Integrate with Pyth on Sui
+1. Background
+Pyth price feeds on Sui are uniquely represented in the global store as PriceInfoObjects. These objects have the key ability and serve as wrappers around the PriceInfo object, which in turn contains the price info: namely the PriceFeed, the arrival time of the latest price update, and the attestation time of the latest update.
+PriceInfoObjects are central to Pyth on Sui, since they are in unique correspondence with each Pyth price feed and must be passed in to functions that update price feeds or which query info about price feeds, e.g.
+      * update_single_price_feed
+      * update_single_price_feeds_if_fresh
+      * get_price
+2. How to Update and Consume Price Feeds
+We demo how to update and then consume a price feed by building a Sui programmable transaction off-chain, and then executing it to update a price feed and get an updated price.
+As with other chains, one first obtains a batch price attestation VAA (of type vector<u8>) from a Pyth price service endpoint, which encodes update price information for a feed.
+1. wormhole::vaa::parse_and_verify
+Call parse_and_verify on the batch attestation VAA bytes to obtain a VAA hot potato object.
+public fun parse_and_verify(
+     wormhole_state: &State,
+     buf: vector<u8>, // price update VAA bytes
+     the_clock: &Clock
+ ): VAA
+2. pyth::pyth::update_single_price_feed
+Use the verified VAA and create a hot potato vector containing the latest price updates.
+public fun create_price_infos_hot_potato(
+       pyth_state: &PythState,
+       verified_vaas: vector<VAA>,
+       clock: &Clock
+): HotPotatoVector<PriceInfo>
+3.pyth::pyth::update_single_price_feed
+Use the hot potato price updates vector to update a price feed.
+Note that conventional Pyth price IDs are found here. However, instead of passing in a Pyth price feed ID to update the price feed (which is what is done on other chains), one must pass in a PriceInfoObject ID instead.
+The PriceInfoObject IDs are distinct from Pyth price feed IDs, and are stored in a map on-chain (Pyth price feed ID => PriceInfoObject ID). We pulled this map into a local json file here. The PriceInfoObject ID can also be queried on-chain by calling the pyth::state::get_price_info_object_id found in the Pyth package. See the common questions section below for more info.
+public fun update_single_price_feed(
+   pyth_state: &PythState,
+   price_updates: HotPotatoVector<PriceInfo>,
+   price_info_object: &mut PriceInfoObject,
+   fee: Coin<SUI>,
+   clock: &Clock
+): HotPotatoVector<PriceInfo>
+4.pyth::hot_potato_vector::destroy
+Drop the hot potato. (You must call this function to drop the potato).
+public fun destroy<T: copy + drop>(
+   hot_potato_vector: HotPotatoVector<T>
+)
+5. pyth::pyth::get_price
+Finally, get the price of the updated price feed in PriceInfoObject 🎉🎉🎉.
+public fun get_price(
+     state: &PythState,
+     price_info_object: &PriceInfoObject,
+     clock: &Clock
+): Price
+3. Examples
+See the ./scripts folder for examples of programmable transactions for creating price feeds and updating price feeds.
+      * ​Demo for updating a price feed​
+To build and test the contracts, run the following
+$ make test
+$ make build
+4. Contracts Registry
+Pyth on Testnet
+      * PYTH_PACKAGE_ID: 0x975e063f398f720af4f33ec06a927f14ea76ca24f7f8dd544aa62ab9d5d15f44​
+      * PYTH_STATE_ID: 0xd8afde3a48b4ff7212bd6829a150f43f59043221200d63504d981f62bff2e27a​
+      * PYTH_PRICE_FEED_ID_TO_PRICE_INFO_OBJECT_ID: 0xf8929174008c662266a1adde78e1e8e33016eb7ad37d379481e860b911e40ed5​
+Wormhole on Testnet
+      * WORMHOLE_PACKAGE_ID: 0xcc029e2810f17f9f43f52262f40026a71fbdca40ed3803ad2884994361910b7e​
+      * WORMHOLE_STATE_ID: 0xebba4cc4d614f7a7cdbe883acc76d1cc767922bc96778e7b68be0d15fce27c02​
+Pyth on Mainnet
+      * PYTH_PACKAGE_ID: 0x00b53b0f4174108627fbee72e2498b58d6a2714cded53fac537034c220d26302​
+      * PYTH_STATE_ID: 0xf9ff3ef935ef6cdfb659a203bf2754cebeb63346e29114a535ea6f41315e5a3f​
+      * PYTH_PRICE_FEED_ID_TO_PRICE_INFO_OBJECT_ID: 0x14b4697477d24c30c8eecc31dd1bd49a3115a9fe0db6bd4fd570cf14640b79a0​
+Wormhole on Mainnet
+      * WORMHOLE_PACKAGE_ID: 0x5306f64e312b581766351c07af79c72fcb1cd25147157fdc2f8ad76de9a3fb6a​
+      * WORMHOLE_STATE_ID: 0xaeab97f96cf9877fee2883315d459552b2b921edc16d7ceac6eab944dd88919c​
+5. Common Questions on How to Integrate with Pyth on Sui
+1. What is up with the "sui rev"? (09b2081498366df936abae26eea4b2d5cafb2788). Why does it point to a specific commit hash instead of "main" or "devnet"?
+Our Pyth Move.toml file contains the following dependencies. It depends on specific versions of the Sui Framework as well as Wormhole. To make your Sui package compatible, you must also specify the following dependencies verbatim in your Move.toml file. We are locked in to this specific rev because our package depends on Wormhole, which uses the rev 09b2081498366df936abae26eea4b2d5cafb2788.
+[dependencies.Sui]
+git = "https://github.com/MystenLabs/sui.git"
+subdir = "crates/sui-framework/packages/sui-framework"
+rev = "09b2081498366df936abae26eea4b2d5cafb2788"
+​
+[dependencies.Wormhole]
+git = "https://github.com/wormhole-foundation/wormhole.git"
+subdir = "sui/wormhole"
+rev = "d050ad1d67a5b7da9fb65030aad12ef5d774ccad"
+2. How do I find the Sui Object ID of a PriceInfoObject for a Pyth Price Feed?
+The mapping of Pyth price feed IDs to PriceInfoObject object IDs can be found here. (Note: this may go out of date as more price feeds are introduced and created over time).
+This mapping is also stored on-chain, and can be queried on-chain using the getter function pyth::state::get_price_info_object_id defined in the Pyth package.
+Also recall that the list of Pyth price feed IDs can be found here.
+
+
+Pyth on Cosmwasm
+Consume Pyth Network prices in applications on Cosmwasm
+Cosmwasm contracts can update and fetch the Pyth prices using the Pyth Cosmwasm Contract, deployed on their network.
+Updating Price Feeds
+The mechanism by which price feeds are updated on Cosmwasm is explained here. The pyth-common-js can be used to fetch the latest price feed data which then can be passed to the ExecuteMsg on-chain function.
+Examples
+      * Minimal on-chain contract which queries the Pyth contract.
+Networks
+Pyth is currently available on the following cosmwasm chains:
+Mainnet
+Network
+	Contract address
+	Injective
+	inj12j43nf2f0qumnt2zrrmpvnsqgzndxefujlvr08
+	Testnet
+Network
+	Contract address
+	Injective
+	inj1yzx0wdn6t7xrjdpgztnrraq57nw2zxhstr97xw
+	Sei Atlantic 2
+	sei1977nnu5jqatteqgve8tx7nzu9y7eh6cvq0e4g6xjx8tf5wm4nkmsfljunh
+	Osmosis Test 4
+	osmo1xws8v2yv50v0spn90yr9fe9zx8zxfppl3syn38zw59npvp8dd70sutnvsm
+	Osmosis Test 5
+	osmo12u2vqdecdte84kg6c3d40nwzjsya59hsj048n687m9q3t6wdmqgsq6zrlx
+	Neutron Pion 1
+	neutron1zpn7yhxqx2f0c6cpmp3fr42yafupz9elglvgdss2300c847ph0hsgurhlj
+	Juno
+	juno1ygyhu0zn69zm0354nzpd7zrp5xs9vpkqcuk7kfneyghrpa87msmqeskxqa
+	
+
+Pyth on BAS Chains
+Consume Pyth Network prices in applications on BNB Application Sidechains
+Deployment
+If, as is highly likely, your BAS chain doesn't already have a deployment of Pyth, you will need to deploy the pyth-crosschain receiver contracts yourself. This is easy to do and will enable contracts deployed on your BAS chain to consume Pyth price feeds from the PythUpgradable contract.
+To deploy the pyth-crosschain receiver contracts to your BAS chain:
+      * Clone the pyth-crosschain repo.
+      * Add your BAS network details to the Truffle Networks configuration file. An example using BAS test net is configured as below:
+      * my_bas_testnet: {
+      *    provider: () => new HDWalletProvider(
+      *        process.env.MNEMONIC,
+      *        "https://bas-aries-public.nodereal.io"
+      *    ),
+      *    confirmations: 10,
+      *    networkCheckTimeout: 1000000,
+      *    timeoutBlocks: 1000,
+      *    skipDryRun: true,
+      *          network_id: 117,
+      * }
+      * Prepare a .env.prod.my_bas_testnet environment file in the pyth-crosschain/target_chains/ethereum directory. Please note if you test the deployment in the test net, you need use the Testnet pyth variable of PYTH_TO_WORMHOLE_EMITTER like below.
+      * # The truffle network name of your BAS chain, defined in the configuration earlier
+      * MIGRATIONS_NETWORK=my_bas_testnet
+      * ​
+      * # Keep these values the same
+      * MIGRATIONS_DIR=./migrations/prod-receiver   
+      * PYTH_TO_WORMHOLE_CHAIN_ID=0x1
+      * ​
+      * # Choose this value based on your network type (testnet, mainnet)
+      * # Testnet Pyth
+      * PYTH_TO_WORMHOLE_EMITTER=0xf346195ac02f37d60d4db8ffa6ef74cb1be3550047543a4a9ee9acf4d78697b0
+      * INIT_SIGNERS=["0x13947Bd48b18E53fdAeEe77F3473391aC727C638"]
+      * INIT_GOV_CHAIN_ID=0x1
+      * INIT_GOV_CONTRACT=0x0000000000000000000000000000000000000000000000000000000000000004
+      * # Mainnet Pyth
+      * # PYTH_TO_WORMHOLE_EMITTER=0x6bb14509a612f01fbbc4cffeebd4bbfb492a86df717ebe92eb6df432a3f00a25
+      * # INIT_SIGNERS=["0x58CC3AE5C097b213cE3c81979e1B9f9570746AA5"]
+      * # INIT_GOV_CHAIN_ID=0x1
+      * # INIT_GOV_CONTRACT=0x0000000000000000000000000000000000000000000000000000000000000004
+      * ​
+      * # Choose this value based on your network type (testnet, mainnet)
+      * # Testnet Pyth
+      * PYTH_TO_WORMHOLE_EMITTER=0xf346195ac02f37d60d4db8ffa6ef74cb1be3550047543a4a9ee9acf4d78697b0
+      * # Mainnet Pyth
+      * # PYTH_TO_WORMHOLE_EMITTER=0x6bb14509a612f01fbbc4cffeebd4bbfb492a86df717ebe92eb6df432a3f00a25
+      * Now, under the pyth2wormhole/ethereum directory, install dependencies.
+      * npm install
+      * Now run the Truffle migrations inside pyth-crosschain/target_chains/ethereum/migrations/prod-receiver/ using the instructions here. Make sure you are deploying using the right environment file and to the correct network.
+      * You can verify the contracts have been deployed successfully using the example here.
+Usage
+After the pyth2wormhole contracts have been deployed to your BAS chain, please refer to the Pyth on EVM-based chains documentation for how to consume price feeds.
+
+
+Pyth for Off-chain Apps
+We provide SDKs in various programming languages that allow you to read the values of Pyth price feeds in off-chain applications, such as web frontends:
+JavaScript
+Rust
+Python
+Go
+
+
+Price Service
+The price service is a webservice that listens to the Wormhole Network for Pyth price updates and serves them via a convenient web API. The service allows users to easily query for recent price updates via a REST API, or subscribe to a websocket for streaming updates. The Pyth Network Javascript SDKs connect to an instance of the price service in order to fetch on-demand price updates.
+Public Endpoints
+The Pyth Data Association operates two public endpoints for the price service, for mainnet and testnet respectively. These endpoints can be used to test integrations with Pyth Network:
+network
+	url
+	mainnet
+	https://xc-mainnet.pyth.network
+	testnet
+	https://xc-testnet.pyth.network
+	For production deployments, developers integrating with Pyth Network are strongly encouraged to host their own instance of the price service for maximum resilience and decentralization. By running an independent instance of this service, developers tap directly into Wormhole's peer-to-peer network to stream Pyth price updates. This peer-to-peer network has built-in redundancy and is therefore inherently more reliable than a centralized service operated by the PDA. Please find more information about building and running the price service from here.
+
+
+Price Feed Batches
+Price Feeds Batches
+The Pythnet price feeds are batched together to optimize gas usage for applications using Pyth data on a blockchain. In other words, when your application retrieves one price feed and updates the price on-chain, it will automatically do it for four other assets—those available in the same batch.
+Batches
+Currently, the Pyth Data Association and contributors to the Pyth network are in charge of designing the rules around price feed batching—which feeds are batched together—and continuously maintaining those batches for an optimal user experience (more convenience, less cost) when interacting with Pyth data on-chain.
+Batches are first segmented per asset type: Metal, FX, Equity, and Crypto. Crypto is the only asset class with sub-categories: stablecoins, fan tokens, or layer-1 types of tokens (ERC-20, SPL, TRC, BEP…), etc. Then (and for all asset types), batches are filled with price feeds in descending alphabetical order.
+All existing batches are listed below:
+group_name
+	symbols
+	batch_metal_1
+	Metal.XAG/USD
+	​
+	Metal.XAU/USD
+	batch_fx_1
+	FX.AUD/USD
+	​
+	FX.EUR/USD
+	​
+	FX.NZD/USD
+	​
+	FX.GBP/USD
+	​
+	FX.USD/CAD
+	batch_fx_2
+	FX.USD/CHF
+	​
+	FX.USD/CHN
+	​
+	FX.USD/HKD
+	​
+	FX.USD/JPY
+	​
+	FX.USD/MXN
+	batch_fx_3
+	FX.USD/RUB
+	​
+	FX.USD/SGD
+	​
+	FX.USD/ZAR
+	batch_gb_equity_1
+	Equity.GB.IB01/USD
+	​
+	Equity.GB.IBTA/USD
+	batch_us_equity_1
+	Equity.US.AAPL/USD
+	​
+	Equity.US.AMC/USD
+	​
+	Equity.US.AMGN/USD
+	​
+	Equity.US.AMZN/USD
+	​
+	Equity.US.AXP/USD
+	batch_us_equity_2
+	Equity.US.BA/USD
+	​
+	Equity.US.CAT/USD
+	​
+	Equity.US.CRM/USD
+	​
+	Equity.US.CSCO/USD
+	​
+	Equity.US.CVX/USD
+	batch_us_equity_3
+	Equity.US.DIS/USD
+	​
+	Equity.US.DOW/USD
+	​
+	Equity.US.EFA/USD
+	​
+	Equity.US.GE/USD
+	​
+	Equity.US.GME/USD
+	batch_us_equity_4
+	Equity.US.GOOG/USD
+	​
+	Equity.US.GOVT/USD
+	​
+	Equity.US.GS/USD
+	​
+	Equity.US.HD/USD
+	​
+	Equity.US.HON/USD
+	batch_us_equity_5
+	Equity.US.IBM/USD
+	​
+	Equity.US.INTC/USD
+	​
+	Equity.US.IVV/USD
+	​
+	Equity.US.IWM/USD
+	​
+	Equity.US.JNJ/USD
+	batch_us_equity_6
+	Equity.US.JPM/USD
+	​
+	Equity.US.KO/USD
+	​
+	Equity.US.MCD/USD
+	​
+	Equity.US.MINT/USD
+	​
+	Equity.US.MMM/USD
+	batch_us_equity_7
+	Equity.US.MRK/USD
+	​
+	Equity.US.MSFT/USD
+	​
+	Equity.US.NFLX/USD
+	​
+	Equity.US.NKE/USD
+	​
+	Equity.US.PG/USD
+	batch_us_equity_8
+	Equity.US.QQQ/USD
+	​
+	Equity.US.SHV/USD
+	​
+	Equity.US.SPY/USD
+	​
+	Equity.US.TLT/USD
+	​
+	Equity.US.TRV/USD
+	batch_us_equity_9
+	Equity.US.TSLA/USD
+	​
+	Equity.US.UNH/USD
+	​
+	Equity.US.USO/USD
+	​
+	Equity.US.V/USD
+	​
+	Equity.US.VOO/USD
+	batch_us_equity_10
+	Equity.US.VZ/USD
+	​
+	Equity.US.WBA/USD
+	​
+	Equity.US.WMT/USD
+	​
+	Equity.US.XLE/USD
+	batch_crypto_stablecoin_1
+	Crypto.BRZ/USD
+	​
+	Crypto.BUSD/USD
+	​
+	Crypto.CUSD/USD
+	​
+	Crypto.DAI/USD
+	​
+	Crypto.HAY/USD
+	batch_crypto_stablecoin_2
+	Crypto.TUSD/USD
+	​
+	Crypto.USDC/USD
+	​
+	Crypto.USDD/USD
+	​
+	Crypto.USDT/USD
+	​
+	Crypto.USTC/USD
+	batch_crypto_stablecoin_3
+	Crypto.VAI/USD
+	batch_crypto_fantoken_1
+	Crypto.ACM/USD
+	​
+	Crypto.ALPINE/USD
+	​
+	Crypto.ARG/USD
+	​
+	Crypto.ASR/USD
+	​
+	Crypto.ATM/USD
+	batch_crypto_fantoken_2
+	Crypto.BAR/USD
+	​
+	Crypto.CHZ/USD
+	​
+	Crypto.CITY/USD
+	​
+	Crypto.GAL/USD
+	​
+	Crypto.INTER/USD
+	batch_crypto_fantoken_3
+	Crypto.ITA/USD
+	​
+	Crypto.JUV/USD
+	​
+	Crypto.LAZIO/USD
+	​
+	Crypto.OG/USD
+	​
+	Crypto.POR/USD
+	batch_crypto_fantoken_4
+	Crypto.PORTO/USD
+	​
+	Crypto.PSG/USD
+	​
+	Crypto.SANTOS/USD
+	batch_crypto_eth_stakedeth
+	Crypto.BETH/USD
+	​
+	Crypto.CBETH/USD
+	​
+	Crypto.ETH/USD
+	​
+	Crypto.STETH/USD
+	​
+	Crypto.RETH/USD
+	batch_crypto_sol_stakedsol
+	Crypto.JITOSOL/USD
+	​
+	Crypto.MSOL/USD
+	​
+	Crypto.SCNSOL/USD
+	​
+	Crypto.SOL/USD
+	​
+	Crypto.STSOL/USD
+	batch_crypto_apt_stakedapt
+	Crypto.APT/USD
+	​
+	Crypto.TAPT/USD
+	batch_crypto_near_stakednear
+	Crypto.NEAR/USD
+	​
+	Crypto.STNEAR/USD
+	batch_crypto_blochchain_1
+	Crypto.ADA/USD
+	​
+	Crypto.ALGO/USD
+	​
+	Crypto.AMB/USD
+	​
+	Crypto.ATOM/USD
+	​
+	Crypto.AVAX/USD
+	batch_crypto_blochchain_2
+	Crypto.BCH/USD
+	​
+	Crypto.BNB/USD
+	​
+	Crypto.BTC/USD
+	​
+	Crypto.CELO/USD
+	​
+	Crypto.CRO/USD
+	batch_crypto_blochchain_3
+	Crypto.DOGE/USD
+	​
+	Crypto.DOT/USD
+	​
+	Crypto.FLOW/USD
+	​
+	Crypto.FTM/USD
+	​
+	Crypto.HNT/USD
+	batch_crypto_blochchain_4
+	Crypto.INJ/USD
+	​
+	Crypto.KCS/USD
+	​
+	Crypto.LTC/USD
+	​
+	Crypto.LUNA/USD
+	​
+	Crypto.LUNC/USD
+	batch_crypto_blochchain_5
+	Crypto.MATIC/USD
+	​
+	Crypto.ONE/USD
+	​
+	Crypto.OP/USD
+	​
+	Crypto.STRK/USD
+	​
+	Crypto.XMR/USD
+	batch_crypto_spl_1
+	Crypto.ATLAS/USD
+	​
+	Crypto.COPE/USD
+	​
+	Crypto.FIDA/USD
+	​
+	Crypto.GMT/USD
+	​
+	Crypto.GOFX/USD
+	batch_crypto_spl_2
+	Crypto.HXRO/USD
+	​
+	Crypto.JET/USD
+	​
+	Crypto.MEAN/USD
+	​
+	Crypto.MER/USD
+	​
+	Crypto.MNGO/USD
+	batch_crypto_spl_3
+	Crypto.ORCA/USD
+	​
+	Crypto.PORT/USD
+	​
+	Crypto.RAY/USD
+	​
+	Crypto.SBR/USD
+	​
+	Crypto.SLND/USD
+	batch_crypto_spl_4
+	Crypto.SNY/USD
+	​
+	Crypto.SRM/USD
+	​
+	Crypto.ZBC/USD
+	batch_crypto_bep_1
+	Crypto.ALPACA/USD
+	​
+	Crypto.AUTO/USD
+	​
+	Crypto.BANANA/USD
+	​
+	Crypto.BIFI/USD
+	​
+	Crypto.BNX/USD
+	batch_crypto_bep_2
+	Crypto.BSW/USD
+	​
+	Crypto.C98/USD
+	​
+	Crypto.CAKE/USD
+	​
+	Crypto.DAR/USD
+	​
+	Crypto.MBOX/USD
+	batch_crypto_bep_3
+	Crypto.PINKSALE/USD
+	​
+	Crypto.RACA/USD
+	​
+	Crypto.SFP/USD
+	​
+	Crypto.THG/USD
+	​
+	Crypto.TWT/USD
+	batch_crypto_bep_4
+	Crypto.WOM/USD
+	​
+	Crypto.XVS/USD
+	​
+	Crypto.XWG/USD
+	batch_crypto_erc_1
+	Crypto.1INCH/USD
+	​
+	Crypto.AAVE/USD
+	​
+	Crypto.ALICE/USD
+	​
+	Crypto.AMP/USD
+	​
+	Crypto.APE/USD
+	batch_crypto_erc_2
+	Crypto.AURORA/USD
+	​
+	Crypto.AXS/USD
+	​
+	Crypto.BIT/USD
+	​
+	Crypto.CEL/USD
+	​
+	Crypto.CHR/USD
+	batch_crypto_erc_3
+	Crypto.COW/USD
+	​
+	Crypto.DYDX/USD
+	​
+	Crypto.FET/USD
+	​
+	Crypto.FLOKI/USD
+	​
+	Crypto.FTT/USD
+	batch_crypto_erc_4
+	Crypto.GALA/USD
+	​
+	Crypto.LINK/USD
+	​
+	Crypto.OMI/USD
+	​
+	Crypto.SHIB/USD
+	​
+	Crypto.SWEAT/USD
+	batch_crypto_erc_5
+	Crypto.THETA/USD
+	​
+	Crypto.TLM/USD
+	​
+	Crypto.UNI/USD
+	​
+	Crypto.WOO/USD
+	batch_crypto_trc_1
+	Crypto.BTT/USD
+	​
+	Crypto.JST/USD
+	​
+	Crypto.NFT/USD
+	​
+	Crypto.SUN/USD
+	​
+	Crypto.WIN/USD
+	batch_crypto_cw_1
+	Crypto.ANC/USD
+	​
+	Crypto.MIR/USD
+	batch_crypto_ht_1
+	Crypto.MDX/USD
+	The above batches were deployed in production on 22/12/2022—as new feeds are created and supported on the network, those batches may become outdated. Without reorganization, any new price feed will automatically be added to an existing batch until full.
+The Pyth Data Association and contributors to the Pyth network will do their best to keep the above table up to date.
+
+
+
+
+Benchmarks
+Use historical Pyth price data in your application
+Pyth benchmarks allows users to query a historical archive of prices from Pythnet Price Feeds. For example, applications can retrieve the price of BTC/USD as of last Friday at 8:00 AM UTC. This price can be used for contract settlement or any other application that requires historical price data. Benchmarks data is signed and verifiable on-chain with the same trust assumptions as Pythnet Price Feeds.
+Users can access benchmark prices in several different ways, depending on the use case:
+Manual Browsing
+The benchmarks page of the pyth.network website allows users to search the archive of benchmark prices. It also provides default options for common settlement dates and times. Users can select a time and see all of the Pyth prices that were active at that time. Technically, each displayed price corresponds to the Pyth price update published just before the selected time; this ensures that the displayed price is the one a user would have seen if they observed the Pyth price at that time.
+On-chain Contracts
+On-chain contracts can consume benchmark prices using the same on-demand model as Pythnet Price Feeds. Integrators can follow these three steps:
+      1. 1.
+      2. Use the price service endpoint /api/get_vaa to retrieve a signed price update for the desired price feed and time. This endpoint will return a signed price update, specifically the price update immediately after the queried time. This step can be done in either a web frontend or a backend process, depending on who is expected to initiate the transaction.
+      3. 2.
+      4. Pass this price update to your on-chain contract as part of the transaction that needs the benchmark data.
+      5. 3.
+      6. In your on-chain contract, pass the price update to the parsePriceFeedUpdates function on the Pyth contract. This function will check the validity of the update and return the price of the requested asset (if valid). The price update will only be valid if the signatures are correct and the update falls within a user-configured time interval; integrators should set this time interval such that it matches their desired time.
+Note that this process is similar to the standard process for consuming on-demand updates. The main differences are that users call the get_vaa endpoint instead of latest_vaas, and the on-chain contract calls parsePriceFeedUpdates instead of updatePriceFeeds. The pyth-crosschain repo has example code for an integration along the lines above for EVM chains.
+
+
+
+
+TradingView Integration
+Integrate Pyth price feeds on your application user interface with the TradingView widget
+The TradingView integration is a web-based widget that allows users to view Pyth prices on their own website. All Pyth prices made available through the TradingView integration are originating from Pythnet.
+Technical Integration
+      1. 1.
+      2. Add the following script(s) from TradingView to your website depending on your framework:
+html
+React
+<!-- TradingView Widget BEGIN -->
+<div class="tradingview-widget-container">
+ <div id="tradingview"></div>
+ <script
+   type="text/javascript"
+   src="https://s3.tradingview.com/tv.js"
+ ></script>
+ <script type="text/javascript">
+   new TradingView.widget({
+     autosize: true,
+     symbol: "PYTH:BTCUSD",
+     interval: "D",
+     timezone: "Etc/UTC",
+     theme: "light",
+     style: "1",
+     locale: "en",
+     toolbar_bg: "#f1f3f6",
+     enable_publishing: false,
+     allow_symbol_change: true,
+     container_id: "tradingview",
+   });
+ </script>
+</div>
+<!-- TradingView Widget END -->
+      1. 2.
+      2. Replace the symbol parameter with the Pyth symbol you want to display. For example, to display the price of Ethereum, use symbol: "PYTH:ETHUSD".
+      3. 3.
+      4. Replace the interval parameter with the time interval you want to display. For example, to display the price of Ethereum in 1-minute intervals, use interval: "1". Possible resolutions are daily (D or 1D, 2D ... ), weekly (1W, 2W ...), monthly (1M, 2M...) and an intra-day resolution – minutes(1, 2 ...).
+      5. 4.
+      6. Replace the timezone parameter with the timezone you want to display. For example, to display the price of Ethereum in the Eastern Time Zone, use timezone: "America/New_York".
+      7. 5.
+      8. Replace the theme parameter with the theme you want to display. For example, to display the price of Ethereum in dark mode, use theme: "dark".
+      9. 6.
+      10. There is a fully working open-source example of the TradingView integration by one of Pyth's contributors here. The example application is deployed here.
+
+
+
+
+Publish Data
+Get started publishing data
+Data providers can get started publishing data to the Pyth Network by performing the following steps.
+Request access
+First, contact the Pyth Data Association and request to become a data provider. You can reach out on Discord or Telegram. Only data providers with first-party data (exchanges, market makers, and trading firms) are allowed to participate in the network.
+Generate keypair
+Every data provider is identified on the network by a public key, and their prices are signed by the corresponding private key. You will need a Solana public/private key pair for this purpose. If you do not already have a keypair, you can create one using the instructions below:
+# Install the Solana Tool Suite, needed for creating the key used to sign your transactions.
+# See https://docs.solana.com/cli/install-solana-cli-tools for the latest version
+sh -c "$(curl -sSfL https://release.solana.com/v1.14.13/install)"
+​
+# Generate a public/private keypair.
+solana-keygen new --no-bip39-passphrase --outfile publish_key_pair.json
+This command will create a public/private keypair in publish_key_pair.json. Please extract the public key from this file and share it with the Pyth Data Association so they can enable you to publish prices.
+# Print the public key of the keypair.
+solana-keygen pubkey publish_key_pair.json
+This command will output the public key in base58 encoding and will look something like:
+5rYvdyWAunZgD2EC1aKo7hQbutUUnkt7bBFM6xNq2z7Z
+Most data providers choose to generate two separate keypairs, one for testing and one for production. If you do so, please share both public keys with the Pyth Data Association.
+Procure validators
+Every data provider to the network will require both a Solana RPC node and a Pythnet validator. The Pyth Data Association will assist you with this step.
+Pyth-agent
+Data providers can publish data to the network using the pyth-agent software package. This package abstracts away all of the communication with the underlying blockchain and exposes a simple JSON RPC interface for submitting price data. Please see the README of that package for instructions on using it. This software requires you to configure both the keypair and validators from the previous steps in order to run. Please also see the JSON RPC API documentation. Finally, the example publisher is a fully-worked example of how to integrate with the pyth-agent API.
+
+
+
+
+Understanding Publishing Slots
+When a quoter publishes a price, the pyth-client API also forwards what it thinks is the current slot on Solana and Pythnet. This is known as its publishing slot.
+The publishing slot and price is stored as the latest update for that publisher on-chain but only if the price is for a later slot than that currently stored. This is to prevent prices from being updated out-of-order and to facilitate arbitration between multiple publishers.
+The aggregation algorithm only combines prices from publishers that were published within 25 slots of the current on-chain slot.
+Not all published prices get included in the pyth contract due to unreliable transports and the way Solana and Pythnet formulate and reach consensus on each slot.
+A quoter may detect if a published price is dropped by comparing the list of publishing slots it submits vs what it subsequently receives in each aggregate price callback.
+For example, here is an excerpt of a log take from a run of the test_publish.cpp example program against mainnet-beta. It logs everything it sends and everything it receives.
+The publishing slots of six consecutive price submissions have been annotated with the labels A, B, C, D, E and F or slots 79018079, 79018084, 79018085, 79018086, 79018087, 79018092.
+The API submits a new price every time it receives notification of a new slot but note that prices for slots 79018080 thru 79018083 and 79018088 thru 79018091 were not submitted. This is because solana does not always publish consecutive slots and gaps can occur. Solana can also publish slots out-of-order, but the API ignores these and is guaranteed only to issue callbacks for slots that are strictly increasing.
+Price updates occur for slots labelled A, B, C and F. Slots D and E (79018086, 79018087) were dropped and did not get executed on the chain.
+The API keeps track of the "hit-rate" of price submissions that show up in the update callbacks and tracks end-to-end latency statistics at the 25th, 50th, 75th and 99th percentiles both in terms of seconds of elapsed time and in number of slot updates observed. For example, from the same log:The API keeps track of the "hit-rate" of price submissions that show up in the update callbacks and tracks end-to-end latency statistics at the 25th, 50th, 75th and 99th percentiles both in terms of seconds of elapsed time and in number of slot updates observed. For example, from the same log:
+
+
+pyth-client Websocket API
+​pyth-agent supports a websocket interface based on the json-rpc 2.0 standard. Methods include:
+      * ​get_product_list​
+      * ​update_price​
+      * ​subscribe_price_sched​
+      * ​get_product​
+      * ​get_all_products​
+Batch requests are processed in the order the requests appear within the batch.
+get_product_list
+Get the list of available symbols and associated metadata.
+Please note that all of the fields in the attr_dict dictionary should be considered optional: your publishing software should gracefully handle cases where any of these fields are missing.
+The request looks like:
+{
+ "jsonrpc": "2.0",
+ "method": "get_product_list",
+ "id" : 1
+}
+A successful response looks something like:
+{
+"jsonrpc": "2.0",
+"result": [
+ {
+  "account": "9F6eBgAfktth93C9zmtKDXFXNjZkq6JwJR56VPKqWmJm",
+  "attr_dict": {
+   "symbol": "SYMBOL1/USD",
+   "asset_type": "Equity",
+   "country": "USA",
+   "description": "pyth example product #1",
+   "quote_currency": "USD",
+   "tenor": "Spot",
+   "cms_symbol": "SYMBOL1",
+   "cqs_symbol": "SYMBOL1",
+   "nasdaq_symbol": "SYMBOL1"
+  },
+  "price": [
+   {
+    "account": "CrZCEEt3awgkGLnVbsv45Pp4aLhr7fZfZr3ubzrbNXaq",
+    "price_exponent": -4,
+    "price_type": "price"
+   }
+  ]
+ },
+ {
+  "account": "HCFaDYyz1ajS57HfCaaqzA1cZSaa2oEccQejbHaaofd4",
+  "attr_dict": {
+   "symbol": "SYMBOL2/USD",
+   "asset_type": "Equity",
+   "country": "USA",
+   "description": "pyth example product #2",
+   "quote_currency": "USD",
+   "tenor": "Spot",
+   "cms_symbol": "SYMBOL2",
+   "cqs_symbol": "SYMBOL2",
+   "nasdaq_symbol": "SYMBOL2"
+  },
+  "price": [
+   {
+    "account": "7FUsKvvtN5rB1fgYFWZLo5DLcqHTTeu63bUPThYT6MiS",
+    "price_exponent": -4,
+    "price_type": "price"
+   }
+  ]
+ }
+],
+"id": null
+}
+update_price
+Update component price of some symbols using the publishing key of pyth-agent.
+The request includes the pricing account from the get_product_list output and looks something like:
+{
+ "jsonrpc": "2.0",
+ "method": "update_price",
+ "params" : {
+   "account": "CrZCEEt3awgkGLnVbsv45Pp4aLhr7fZfZr3ubzrbNXaq",
+   "price" : 42002,
+   "conf" : 3,
+   "status": "trading"
+ },
+ "id" : 1
+}
+The price and confidence interval (conf) attributes are expressed as integers with an implied decimal point given by the price_exponent defined by the symbol. The price type is a string with one of the following values: "price" or "ema__price". The symbol status is a string with one of the following values: "trading" or "halted".
+A successful response looks like:
+{
+ "jsonrpc": "2.0",
+ "result" : 0,
+ "id" : 1
+}
+subscribe_price_sched
+Subscribe to price update schedule. pyth-agent will notify the client whenever it should submit the next price for a subscribed symbol.
+The request looks like:
+{
+ "jsonrpc": "2.0",
+ "method": "subscribe_price_sched",
+ "params" : {
+   "account": "CrZCEEt3awgkGLnVbsv45Pp4aLhr7fZfZr3ubzrbNXaq",
+ },
+ "id" : 1
+}
+A successful response looks like:
+{
+ "jsonrpc": "2.0",
+ "result" : {
+   "subscription" : 1234
+ },
+ "id" : 1
+}
+Where the result is an integer corresponding to a subscription identifier. All subsequent notifications for this subscription correspond to this identifier.
+{
+ "jsonrpc": "2.0",
+ "method": "notify_price_sched",
+ "params": {
+   "subscription" : 1234
+ }
+}
+get_product
+Get the full set of data for the given product.
+Please note that all of the fields in the attr_dict dictionary should be considered optional: your publishing software should gracefully handle cases where any of these fields are missing.
+The request looks like:
+{
+ "jsonrpc": "2.0",
+ "method": "get_product",
+ "params": {
+   "account": "4aDoSXJ5o3AuvL7QFeR6h44jALQfTmUUCTVGDD6aoJTM"
+ },
+ "id" : 1
+}
+A successful response looks something like:
+{
+ "jsonrpc": "2.0",
+ "result": {
+   "account": "4aDoSXJ5o3AuvL7QFeR6h44jALQfTmUUCTVGDD6aoJTM",
+   "attr_dict": {
+     "asset_type": "Crypto",
+     "symbol": "BTC/USD",
+     "country": "US",
+     "quote_currency": "USD",
+     "description": "BTC/USD",
+     "tenor": "Spot",
+     "generic_symbol": "BTCUSD"
+   },
+   "price_accounts": [
+     {
+       "account": "GVXRSBjFk6e6J3NbVPXohDJetcTjaeeuykUpbQF8UoMU",
+       "price_type": "price",
+       "price_exponent": -8,
+       "status": "trading",
+       "price": 4426101900000,
+       "conf": 4271150000,
+       "ema_price": 4433467600000,
+       "ema_confidence": 1304202670,
+       "valid_slot": 91402257,
+       "pub_slot": 91402259,
+       "prev_slot": 91402256,
+       "prev_price": 4425895500000,
+       "prev_conf": 3315350000,
+       "publisher_accounts": [
+         {
+           "account": "HekM1hBawXQu6wK6Ah1yw1YXXeMUDD2bfCHEzo25vnEB",
+           "status": "trading",
+           "price": 4426958500000,
+           "conf": 1492500000,
+           "slot": 91402255
+         },
+         {
+           "account": "GKNcUmNacSJo4S2Kq3DuYRYRGw3sNUfJ4tyqd198t6vQ",
+           "status": "trading",
+           "price": 4424690000000,
+           "conf": 3690000000,
+           "slot": 91402256
+         }
+       ]
+     }
+   ]
+ },
+ "id": 1
+}
+get_all_products
+Get full set of data for the given product.
+Please note that all of the fields in the attr_dict dictionary should be considered optional: your publishing software should gracefully handle cases where any of these fields are missing.
+The request looks like:
+{
+ "jsonrpc": "2.0",
+ "method": "get_all_products",
+ "id" : 1
+}
+A successful response looks something like:
+{
+ "jsonrpc": "2.0",
+ "result": [
+   {
+     "account": "5uKdRzB3FzdmwyCHrqSGq4u2URja617jqtKkM71BVrkw",
+     "attr_dict": {
+       "asset_type": "Crypto",
+       "symbol": "BCH/USD",
+       "country": "US",
+       "quote_currency": "USD",
+       "description": "BCH/USD",
+       "tenor": "Spot",
+       "generic_symbol": "BCHUSD"
+     },
+     "price_accounts": [
+       {
+         "account": "5ALDzwcRJfSyGdGyhP3kP628aqBNHZzLuVww7o9kdspe",
+         "price_type": "price",
+         "price_exponent": -8,
+         "status": "trading",
+         "price": 60282000000,
+         "conf": 26000000,
+         "ema_price": 60321475000,
+         "ema_confidence": 22504746,
+         "valid_slot": 91402601,
+         "pub_slot": 91402604,
+         "prev_slot": 91402600,
+         "prev_price": 60282000000,
+         "prev_conf": 26000000,
+         "publisher_accounts": [
+           {
+             "account": "HekM1hBawXQu6wK6Ah1yw1YXXeMUDD2bfCHEzo25vnEB",
+             "status": "trading",
+             "price": 60282000000,
+             "conf": 26000000,
+             "slot": 91402599
+           },
+           {
+             "account": "2V7t5NaKY7aGkwytCWQgvUYZfEr9XMwNChhJEakTExk6",
+             "status": "unknown",
+             "price": 0,
+             "conf": 0,
+             "slot": 0
+           }
+         ]
+       }
+     ]
+   },
+   {
+     "account": "3nuELNFBkbXqsXtnCzphRPCX6toKKYxVDnkyr9pTwB1K",
+     "attr_dict": {
+       "asset_type": "Crypto",
+       "symbol": "SABER/USD",
+       "country": "US",
+       "quote_currency": "USD",
+       "description": "SABER/USD",
+       "tenor": "Spot",
+       "generic_symbol": "SABERUSD"
+     },
+     "price_accounts": [
+       {
+         "account": "8Td9VML1nHxQK6M8VVyzsHo32D7VBk72jSpa9U861z2A",
+         "price_type": "price",
+         "price_exponent": -8,
+         "status": "trading",
+         "price": 5785000,
+         "conf": 5000,
+         "ema_price": 5856365,
+         "ema_confidence": 10241,
+         "valid_slot": 91402601,
+         "pub_slot": 91402604,
+         "prev_slot": 91402600,
+         "prev_price": 5785000,
+         "prev_conf": 5000,
+         "publisher_accounts": [
+           {
+             "account": "GKNcUmNacSJo4S2Kq3DuYRYRGw3sNUfJ4tyqd198t6vQ",
+             "status": "trading",
+             "price": 5785000,
+             "conf": 5000,
+             "slot": 91402601
+           }
+         ]
+       }
+     ]
+   }
+ ],
+ "id": 1
+}
+
+
+
+
+Confidence Interval and Crypto Exchange Fees
+It is very important that publishers consider crypto exchange aggressive fees when calculating their price and confidence intervals from one or more exchange order books. Ask prices should be moved up by the best publicly available aggressive fee rate, and bid prices should be moved down by the same rate.
+ask_adjusted = ask * (1.0 + fee_rate)
+bid_adjusted = bid * (1.0 - fee_rate)
+This is to reflect the "after fee" effective prices that could be gotten on that exchange. This is important for crypto markets because the fees are often MUCH larger than the typical bid-ask spread. It is not important for other markets (such as US equities) where fees are small compared with the bid-ask spread. The rationale for this adjustment is that the "fair price" could be above the best ask or below the best bid by as much as the aggressive fees before an informed trader would be able to profitably trade on this exchange and move the best price. Because of that, the best price on the exchange could be "wrong" by as much as +/- the aggressive fees.
+Example 1 - Exchange A has best aggressive fee of 10bps
+  
+
+Exchange A should publish a price of $50,000.01 and a confidence of $50.005 (half the bid-ask spread after fee adjustment). It would be wrong to publish a confidence of $0.005 based on the "not fee-adjusted" raw exchange bid-ask spread.
+Example 2 - Exchange A has a best aggressive fee of 10bps. Exchange B has a best aggressive fee of 1bps, and a publisher is combining them into a single combined book. Exchange books are combined by taking the best ask across both exchanges and the best bid across both exchanges.
+  
+
+In this example, if a publisher were combining the books of Exchange A and Exchange B to get a combined price, they should publish a price of $49,978.13 and confidence of $28.125, which corresponds to the midprice and half the bid-ask spread of the combined fee-adjusted books. It would be wrong to publish a price of $50,000.01 and confidence of $0.01 based on the "not fee-adjusted" raw exchange prices. Note that in this example, not only is the confidence changed by including the exchange fees, but the price reported is also substantially different once fees are properly accounted for.
+
+
+
+
+How Pyth Works
+Pyth is a protocol that allows market participants to publish pricing information on-chain for others to use. The protocol is an interaction between three parties:
+      1. 1.
+      2. Publishers submit pricing information to Pyth's oracle program. Pyth has multiple data publishers for every product to improve the accuracy and robustness of the system.
+      3. 2.
+      4. Pyth's oracle program combines publishers' data to produce a single aggregate price and confidence interval.
+      5. 3.
+      6. Consumers read the price information produced by the oracle program.
+Pyth's oracle program runs simultaneously on both Solana mainnet and Pythnet. Each instance of the program is responsible for its own set of price feeds. Solana Price Feeds are available for use by Solana protocols. In this case, since the oracle program itself runs on Solana, the resulting prices are immediately available to consumers without requiring any additional work. Pythnet Price Feeds are available on 12+ blockchains. The prices constructed on Pythnet are transferred cross-chain to reach consumers on these blockchains.
+In both cases, the critical component of the system is the oracle program that combines the data from each individual publisher. This program maintains a number of different Solana accounts that list the products on Pyth and their current price data. Publishers publish their price and confidence by interacting with the oracle program on every slot. The program stores this information in its accounts. The first price update in a slot additionally triggers price aggregation, which combines the price data from the previous slot into a single aggregate price and confidence interval. This aggregate price is written to the Solana account where it is readable by other on-chain programs and available for transmission to other blockchains.
+
+
+
+
+Pythnet
+Pythnet is an application-specific blockchain operated by Pyth's data providers. This blockchain is a computation substrate to securely combine the data provider's prices into a single aggregate price for each Pyth price feed. Pythnet forms the core of Pyth's off-chain price feeds that serve all blockchains (except Solana mainnet).
+Pythnet is powered by Solana technology: it runs the same validator software, but is a separate network that is specially configured to be a proof-of-authority chain. The network depends on a tightly controlled supply of the chain's native token, called PGAS, which is currently controlled by the Pyth Data Association. Operating a validator on the network requires a large stake of PGAS tokens. The Pyth Data Association allows each data provider to operate one validator by delegating them the necessary stake. Each data provider is then given a sufficient quantity of PGAS tokens to publish prices to the network. The network is configured such that account creation is very expensive, preventing anyone without a substantial quantity of PGAS from deploying programs to the network. Once governance is live, it will take over management of the PGAS token from the Pyth Data Association.
+The purpose of Pythnet is to provide a secure and reliable computing substrate for Pyth's price aggregation. Recall that Pyth's data providers submit their own price quotes for each product. The Pyth protocol needs to be able to combine these prices to produce a single aggregate price. This computation needs to be performed securely -- prices must be combined correctly -- and reliably -- prices must always be available for applications. Pythnet solves both of these problems. First, anyone can validate that the price computation is done correctly by replaying the network's transaction log. The Wormhole guardians perform this validation when constructing the Pyth price update messages that are delivered to other blockchains. Consequently, as long as 2/3+ of the Wormhole guardians are honest, users of Pyth prices can trust that they were computed accurately. Second, the Pythnet blockchain has built-in redundancy to ensure high availability: it is operational as long as 2/3+ of Pythnet validators are online. Furthermore, Pythnet remains available even when target chain transaction bandwidth is highly contested, such as during periods of high market volatility.
+
+
+
+
+Cross-chain
+Pyth uses a cross-chain mechanism to transfer prices from Pythnet to target chains. The diagram below shows how prices are delivered from Pythnet to target chains:
+  
+
+Data providers publish their prices on Pythnet. The on-chain oracle program then aggregates prices for a feed to obtain the aggregate price and confidence. Next, the attester program regularly attests to the most recently observed Pyth prices and creates a Wormhole message to be sent to the Wormhole contract on Pythnet. The Wormhole guardians then observe the attestation message and create a signed VAA for the message.
+The price service API continually listens to Wormhole for Pyth price update messages. It stores the latest update message in memory and exposes HTTP and websocket APIs for retrieving the latest update. (Anyone can run an instance of this webservice, but the Pyth Data Association runs a public instance for convenience.) When a user wants to use a Pyth price in a transaction, they retrieve the latest update message (a signed VAA) from the price service and submit it in their transaction. The target chain Pyth contract will verify the validity of the price update message and, if it is valid, store the new price in its on-chain storage. See on-demand updates for more details about this process.
+Finally, on-chain protocols integrate with the Pyth contract via a simple API that retrieves the current Pyth price from its on-chain storage. This API will return the current price as long as it has been updated sufficiently recently; this approach works because users will have updated the Pyth price earlier in the same transaction. Protocols can configure the recency threshold to suit their needs — e.g., latency sensitive applications can set a lower threshold than the default.
+
+
+
+
+Oracle Program
+The oracle program is responsible for several tasks:
+      1. 1.
+      2. Maintaining the set of price feeds.
+      3. 2.
+      4. Storing the contributions of data providers to each price feed.
+      5. 3.
+      6. Combining the individual data providers' prices into a single aggregate price and confidence interval.
+      7. 4.
+      8. Performing any additional stateful computations on the resulting price series, such as computing moving averages.
+The oracle solves these problems by maintaining a collection of Solana accounts to represent the set of price feeds. Each feed has two accounts: a product account to store metadata and a price account. The price account stores a list of authorized data providers for this specific price feed, and allocates storage space for each data provider's price. The oracle program exposes an instruction called upd_price that enables an authorized data provider to update the price account with their current estimate of the price and confidence interval. Additionally, the first time that upd_price is called in a slot, it will aggregate the individual data provider's prices into an aggregate price and confidence interval. Only the aggregate price and confidence are made available for use in downstream applications; the individual data providers prices are internal state of the oracle program. Finally, the oracle program computes an exponentially-weighted moving average of the oracle price.
+
+
+
+
+Account Structure
+The Pyth oracle program manages a number of on-chain accounts. There are three different types of accounts:
+      1. 1.
+      2. Product accounts store metadata about a product, such as its symbol (e.g., "BTC/USD") and asset type.
+      3. 2.
+      4. Price accounts store the current price information for a particular product. This account has fields such as the current price, a confidence interval, an exponential moving average price, an exponential moving average confidence interval and whether or not a price is currently available.
+      5. 3.
+      6. Mapping accounts serve as a listing of other accounts. The mapping accounts are organized into a linked list whose values are the set of product accounts. These accounts allow applications to enumerate the full list of products whose prices are available on Pyth.
+The Pyth Rust SDK contains a sample application that prints the current content of all Pyth accounts. We will use the output of this application to better understand the content of these accounts.
+Product Accounts
+Product accounts store metadata about a product. This metadata is represented as a set of reference attributes, stored as a list of text key/value pairs. Not all product accounts follow the same structure; for a comprehensive overview, visit the Product Metadata page. For example, the product account for AAPL contains the following fields:
+product_account .. G89jkM5wFLpmnbvRbeePUumxsJyzoXaRfgBVjyx2CPzQ
+ symbol.......... Equity.US.AAPL/USD
+ asset_type...... Equity
+ quote_currency.. USD
+ description..... APPLE INC
+ base............ AAPL
+ country......... US
+ cms_symbol...... AAPL
+ cqs_symbol...... AAPL
+ nasdaq_symbol... AAPL
+ price_account... CqFJLrT4rSpA46RQkVYWn8tdBDuQ7p7RXcp6Um76oaph
+This snippet shows the reference attributes for AAPL. The set of available reference attributes depends on the asset_type. Every product account has symbol , asset_type, quote_currency , and price_account . US equity products additionally include additional reference symbology that is useful for mapping Pyth products to other industry-standard identifiers. The product account also contains a pointer to a price account that contains the product's current pricing information.
+As another example, here is the product account for BTC/USD:
+product_account .. 3m1y5h2uv7EQL3KaJZehvAJa4yDNvgc5yAdL9KPMKwvk
+ symbol.......... Crypto.BTC/USD
+ asset_type...... Crypto
+ quote_currency.. USD
+ description..... BTC/USD
+ generic_symbol.. BTCUSD
+ base............ BTC
+ price_account .. HovQMDrbAgAYPCmHVSrezcSmkMtXSSUsLDFANExrZh2J
+Price Accounts
+Price accounts store the current price of a product along with additional useful information. For example, consider the following content of AAPL's price account:
+price_account .. CqFJLrT4rSpA46RQkVYWn8tdBDuQ7p7RXcp6Um76oaph
+   price ........ 16297000 x 10^-5
+   conf ......... 27952 x 10^-5
+   price_type ... price
+   exponent ..... -5
+   status ....... trading
+   corp_act ..... nocorpact
+   num_qt ....... 2
+   valid_slot ... 110430111
+   publish_slot . 110430112
+   ema_price ......... 16247409 x 10^-5
+   ema_confidence ......... 19415 x 10^-5
+This account stores the current price in a fixed-point format. The price is computed by taking the price field and multiplying by 10^exponent. The account also includes a confidence interval that represents Pyth's uncertainty about the current price. This confidence interval can be interpreted as the standard deviation of a Laplace distribution centered around the price. conf is also stored in the same fixed-point format. In the example above, the price is 12276250, the conf is 1500 and the exponent is -5. These values translate into a price of $122.76250 +- 0.015.
+Price accounts include several other useful fields. First, each account has a status that indicates whether or not the price is valid. Pricing information for a product can be unavailable for various reasons, for example, US equity markets only trade during certain hours. The status field indicates whether or not Pyth currently has a price for the product. Only prices with a value of status=trading should be used. If the status is not trading but is Unknown, Halted or Auction the Pyth price can be an arbitrary value.
+Mapping Accounts
+Mapping accounts serve as an index of the pricing information currently available on Pyth. These accounts are organized into a linked list whose values are product accounts. Applications can traverse this linked list to enumerate all products currently available on Pyth.
+
+
+Each mapping account contains a list of product account ids, plus an optional pointer to the subsequent mapping account. Each product account in turn points to the price account that stores the current price information for that product.Each mapping account contains a list of product account ids, plus an optional pointer to the subsequent mapping account. Each product account in turn points to the price account that stores the current price information for that product.
+
+
+Product Metadata
+Product accounts store metadata about a product. This metadata is represented as a set of reference attributes, stored as a list of text key/value pairs but not all products share the same account structure.
+Every product has product_account, symbol, asset_type, quote_currency, base and price_account. However, the remaining fields of a product account will depend on its asset_type.
+Equity
+As a rule, all products with asset_type = Equity will follow the below Product Account structure:
+product_account... Solana Account
+ symbol.......... AssetType.Country.BaseCurrency/QuoteCurrency
+ asset_type...... AssetType
+ quote_currency.. QuoteCurrency
+ description..... Description
+ base............ BaseCurrency
+ country......... Country
+ cms_symbol...... NYSESymbol
+ cqs_symbol...... SIPSSymbol
+ nasdaq_symbol... ComstockSymbol
+ price_account... Solana Account
+symbol: AssetType.Country.BaseCurrency/QuoteCurrency where the base: BaseCurrency is, in order of availability:
+      1. 1.
+      2. cms_symbol: NYSESymbol
+      3. 2.
+      4. cqs_symbol: SIPSSymbol
+      5. 3.
+      6. nasdaq_symbol: ComstockSymbol
+Here is a snapshot of the Apple product account:
+product_account .. G89jkM5wFLpmnbvRbeePUumxsJyzoXaRfgBVjyx2CPzQ
+ symbol.......... Equity.US.AAPL/USD
+ asset_type...... Equity
+ quote_currency.. USD
+ description..... APPLE INC
+ base............ AAPL
+ country......... US
+ cms_symbol...... AAPL
+ cqs_symbol...... AAPL
+ nasdaq_symbol... AAPL
+ price_account... CqFJLrT4rSpA46RQkVYWn8tdBDuQ7p7RXcp6Um76oaph
+Crypto
+As a rule, all products with asset_type = Crypto will follow the below Product Account structure:
+product_account .. Solana Account
+ symbol.......... AssetType.BaseCurrency/QuoteCurrency
+ asset_type...... AssetType
+ quote_currency.. QuoteCurrency
+ description..... Description
+ generic_symbol.. JLQDSymbol
+ base............ BaseCurrency
+ price_account .. Solana Account
+Here is a snapshot of the Luna product account:
+product_account .. 25tCF4ChvZyNP67xwLuYoAKuoAcSV13xrmP9YTwSPnZY
+ symbol.......... Crypto.LUNA/USD
+ asset_type...... Crypto
+ quote_currency.. USD
+ description..... LUNA/USD
+ generic_symbol.. LUNAUSD
+ base............ LUNA
+ price_account .. 8PugCXTAHLM9kfLSQWe2njE5pzAgUdpPk3Nx5zSm7BD3
+Foreign Currency & Metal
+Lastly, are Foreign Currencies (FX) and Metal assets. Those 2 asset_type share a common product account structure that follows the below template:
+product_account .. Solana Account
+ symbol.......... AssetType.BaseCurrency/QuoteCurrency
+ asset_type...... AssetType 
+ quote_currency.. QuoteCurrency
+ description..... Description 
+ generic_symbol.. JLQDSymbol 
+ base............ BaseCurrency
+ tenor........... Maturity 
+ price_account .. Solana Account
+Here is a snapshot of the Japanese Yen product account:
+product_account .. CiTV5gD8G53M1EQdo32jy5riYRU8fMFSVWC5wJj3vjcr
+ symbol.......... FX.USD/JPY
+ asset_type...... FX
+ quote_currency.. JPY
+ description..... USD/JPY
+ generic_symbol.. USDJPY
+ base............ USD
+ tenor........... Spot
+ price_account .. 3CVi3EEprs1zeKhv5kw9EpRDv1hNfvpunQ98gex27Prd
+Best Practices
+The users should not rely on the symbol name being unchanging or parse data out of the symbol.
+Instead, programs should always use the different attributes to identify the product you are interested in. You have to ensure that anything which is used to compose the symbol is made available as a stand-alone attribute.
+Caveats
+We’re limited to 464 bytes to store the attribute dictionary in v2 (the product account is 512 bytes and 48 are used for other fields). This has to hold all the keys and values, plus field separators. There is no data compression or abbreviation.
+
+
+
+
+Price Aggregation
+Price aggregation combines the prices and confidences submitted by individual data providers into a single aggregate price and confidence.
+Design Goals
+The aggregation algorithm is designed to achieve 3 properties. First, it must be robust to manipulation. If most publishers are submitting a price of $100 and one publisher submits a price of $80, the aggregate price should remain near $100 and not be overly influenced by the single outlying price. In the figure below, the aggregate price and confidence interval (represented by the red star) is not influenced by the blue publisher whose price is far away from the other publishers:
+  
+
+Second, the aggregate price should appropriately weight data sources with different levels of accuracy. Pyth allows publishers to submit a confidence interval because they have varying levels of accuracy in observing the price of a product. This property can result in situations where one publisher reports a price of $101 +/- 1, and another reports $110 +/- 10. In these cases, we would like the aggregate price to be closer to $101 than $110, as in the figure below.
+  
+
+Finally, the aggregate confidence interval should reflect the variation between publishers’ prices. Under normal market conditions, we expect the a product to trade at a similar price across exchanges. In these cases, we would like the aggregate confidence interval to reflect the confidence intervals of the individual data providers, as shown in the figure on the left. However, in some rare situations, a product can trade at different prices on different exchanges. In these cases, the aggregate confidence interval should widen out to reflect the variation between these prices, as shown in the figure on the right.
+  
+
+Algorithm
+The aggregation algorithm itself is a simple two-step process. The first step computes the aggregate price by giving each publisher three votes — one vote at their price and one vote at each of their price +/- their confidence interval — then taking the median of all the votes. The second step computes distance from the aggregate price to the 25th and 75th percentiles of the votes, then selects the larger of the two as the aggregate confidence interval.
+This process acts like a hybrid between a mean and a median, giving confident publishers more influence, while still capping the maximum influence of any single publisher. The algorithm has an interpretation as computing the minimum of an objective function that penalizes the aggregate price from deviating too far from the publishers' prices. This interpretation allows us to prove properties of the algorithm's behavior: for example, the aggregate price will always lie between the 25th and 75th percentiles of the publishers' prices.
+Scenarios
+We can visualize the operation of this algorithm and objective function in the 4 scenarios from above. In the following graphs, the colored bars represent each publisher's price and confidence interval, and the grey dashed lines above depict the publisher's contribution to the overall objective function. The red line represents the combined objective function, that is, the sum of the dashed grey lines. The grey circles represent the 25th and 75th percentiles of the votes — the further one of these from the aggregate price determines the confidence interval’s width. Finally, the bold red star depicts the aggregate price and the bold red line depicts the aggregate confidence interval.
+In the first scenario, one publisher with a tight confidence interval is an outlier. Although this publisher does influence the objective function (the red line is lower on the left side than the right), it does not have enough influence to affect either the aggregate price or confidence interval.
+  
+
+The second scenario depicts how publishers with tighter confidence intervals can exert more influence over the location of the aggregate price, as long as their prices are consistent with the confidence intervals of other publishers.
+  
+
+The third scenario demonstrates the typical case where there are many publishers whose prices and confidence intervals roughly agree. In this case, the desired behavior is for the aggregate price and confidence to reflect those of the individual publishers.
+  
+
+Finally, the fourth scenario considers the case where the publishers publish distinct prices with non-overlapping confidence intervals. In this case, the confidence interval widens out because the dispersion between publishers creates a large gap between the aggregate price and the 25th/75th percentiles of the votes.
+
+
+
+
+EMA Price Aggregation
+For more details, please read out Medium Blog on the topic: https://pythnetwork.medium.com/whats-in-a-name-302a03e6c3e1
+Pyth network also offers an exponentially-weighted moving average (EMA) price and confidence. These values are time-weighted averages of the aggregate price and confidence. Both the EMA price (ema_price) and confidence (ema_confidence) are available from Pyth price accounts:
+price_account .. CqFJLrT4rSpA46RQkVYWn8tdBDuQ7p7RXcp6Um76oaph
+   price ........ 16297000 x 10^-5
+   conf ......... 27952 x 10^-5
+   price_type ... price
+   exponent ..... -5
+   status ....... trading
+   corp_act ..... nocorpact
+   num_qt ....... 2
+   valid_slot ... 110430111
+   publish_slot . 110430112
+   ema_price ......... 16247409 x 10^-5
+   ema_confidence ......... 19415 x 10^-5
+What is an exponential moving average (EMA)?
+In an EMA the most recent samples receive the most weight, and samples further back in time get exponentially less weight the farther in the past they are. For a 1 hour EMA, the samples 1 hour in the past get 50% of the weighting, samples 2 hours in the past get 25% of the weighting, 3 hours in the past get 12.5% of the weighting, etc.
+  
+
+While conceptually not as simple as an SMA (Simple Moving Average), the EMA has a particularly simple implementation for streaming applications such as Pyth. The exponential weighting method allows the entire history of prices and weights to be represented by a single number.
+Find the implementation in our GitHub.
+How does Pyth calculate its EMA PRICE and EMA Confidence?
+The EMA Price (ema_price) and EMA Confidence (ema_confidence) values are derived directly from the aggregated prices and confidences Pyth has generated on-chain. Publishers do not submit either EMA Price or EMA Confidence values, they only publish to Solana a “live” price and its associated confidence interval which will, in turn, be used for EMA Price and EMA Confidence calculation.
+The current Pyth averaging method is a slot-weighted, inverse confidence-weighted exponential moving average of the aggregate price (and confidence interval).
+      * Slot weighted — The Pyth EMA uses the Solana slot number to measure the passage of time. The averaging period is 5921 slots, which corresponds to approximately 1 hour on Solana mainnet.
+      * Inverse confidence weighted — Weighting each sample by 1/Confidence lets the EMA give more weight to samples with tight confidence and ignore samples with very wide confidence. Below is an example of an outlier aggregate price with a wide confidence interval. Notice how the average using inverse confidence weighting does not get pulled up by the outlier sample while the uniform weighted average does.
+Security
+The Pyth software has undergone a number of audits from different firms. All of the audit reports are available in the audits github repository.
+Pyth Network also offers a bug bounty program for reports of issues with the deployed code. Please visit the linked page for terms and conditions.
+
+
+
+
+Whitepaper
+For more information, visit the Pyth whitepaper https://pyth.network/whitepaper
+Growth in DeFi requires high-fidelity, time-sensitive, real-world data, direct from the source and made available on any L1 blockchain. Financial market data, however, is often accessible to only a limited set of institutions and users. Traditional markets typically maintain strict control over and access to both live and historical price feeds. Consequently, only a selected group of users has access to the most timely, accurate, and valuable information.
+The Pyth network is a next-generation oracle solution that aims to bring this valuable financial market data to the general public. The network does so by incentivizing market participants — trading firms, market makers, and exchanges — to share directly on-chain the price data collected as part of their existing operations. Pyth's data providers include some of the largest traders, exchanges, and financial services players who create unique high quality market data. This includes real world market data in equities, fx, crypto, and metals with ambitions to scale across asset classes. Data publishers include Jump Trading Group, GTS, Jane Street, Hudson River Trading, LMAX, Virtu, BSX, CTC, and many more.
+The network then aggregates this first-party price data (still on-chain) and makes it available for use by either on- or off-chain applications.
+End-users of Pyth data can elect to pay data fees to gain protection against a potential oracle failure. As data publishers must stake tokens in order to publish data for a product, the stake of at-fault publishers (if they make the aggregate price erroneous) will be used as a payout to those end-users voluntarily paying fees. Delegators choose which product (price feed) and a publisher to stake on top of in order to earn data fees (or lose their stake if the oracle is inaccurate due to publisher faults). Initially, 80% of the data fees will go to delegators while the remaining 20% will be shared among publishers — this, among other parameters, will be subject to change through a PYTH governance.
+The goal of the design and mechanics around the PYTH token aim to make the Pyth network self-sustaining and decentralized.
+
+
+
+
+Network Participants
+For more information, visit the Pyth whitepaper https://pyth.network/whitepaper
+3 different types of stakeholders will interact within the network:
+      * Publishers publish price feeds and earn a share of data fees in exchange. Publishers are typically market participants with access to accurate, timely price information. The protocol rewards publishers in proportion to the quantity of new pricing information that they share.
+      * Consumers read price feeds, incorporate data into smart contracts or dApps, and optionally pay data fees. Consumers can either be on-chain protocols or off-chain applications.
+      * Delegators stake tokens on a specific product and publisher to earn a share of the data fees in exchange for potentially losing their stake if the oracle is inaccurate.
+Any actor may have multiple roles within the network. For instance, data publishers (or consumers) may additionally decide to delegate tokens to earn additional data fees.
+
+
+
+
+Network Interactions
+For more information, visit the Pyth whitepaper https://pyth.network/whitepaper
+The Pyth protocol consists of 4 on-chain core mechanisms:
+      * Price aggregation combines the reported prices and confidence intervals of individual publishers into a single price feed and confidence interval feed for a specific product (e.g. BTC/USD feed). This mechanism is designed to produce robust price feeds — feeds whose prices cannot be significantly influenced by small groups of publishers.
+      * Data staking allows delegators to stake tokens to earn data fees. The delegators in aggregate also determine the level of influence (stake-weight) that each publisher has on the aggregate price. In addition, this mechanism determines whether delegators’ stakes are slashed. Finally, the mechanism collects data fees from consumers and distributes a share to delegators (initially set at 80%). The remainder (20%) goes into a reward pool that is distributed among publishers.
+      * Reward distribution determines the share of the reward pool earned by each publisher. Each product has a reward pool that delegators can stake into. The reward distribution mechanism preferentially rewards publishers with higher quality price feeds and reduces the likelihood that uninformed publishers will earn rewards.
+      * Governance will be using a coin-voting system that will help determine the high-level parameters of the three mechanisms above. Parameters include what types of tokens may be used for data fees; which products are listed on Pyth; the share of data fees allocated to publishers, delegators, and other uses; the number of PYTH tokens that publishers must stake or enable claims to be filed against a product, and more.
+
+
+
+
+Participant Incentives
+For more information, visit the Pyth whitepaper https://pyth.network/whitepaper
+This section summarizes the benefits for the various Pyth network stakeholders:
+Publishers are incentivized to stake PYTH tokens to participate in the protocol and earn a share of the rewards. Publishers earn a share of the data fees for the products they price. The data fees for a product will likely grow in proportion to consumer usage of the price feed. Publishing erroneous data (voluntarily or not) to the network may lead to the publisher's stake being slashed.
+Consumers are incentivized to pay data fees because paying data fees attracts more publishers to the product, which improves the robustness of the price feed.
+Delegators are incentivized to participate in the protocol to earn data fees (coming from consumers’ data fees). Delegators will initially earn attractive payments, but competition between them will reduce the payments over time as the market becomes more efficient.

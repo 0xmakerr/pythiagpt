@@ -1,0 +1,676 @@
+Answers for Quiz IV:
+
+1. So what is Pyth anyways?
+
+1) a specialized oracle solution for latencysensitive financial data that is typically kept behind the “walled gardens” of centralized institutions.
+
+2) a solution which brings valuable financial market data to DeFi applications and the general public.
+
+3) a data aggregation platform for DeFi supported by some of the best global financial players who are providing their own proprietary data.
+
+https://pythnetwork.medium.com/todaywerebeyondexcitedtointroducethepythnetworkanextgenerationoraclesolution735a27504358
+
+Pyth does not collect data from third party sources (aggregators, public internet resources).
+
+https://pythnetwork.medium.com/publishervsreporternetworkse6b11f79abb0
+
+
+2. Why is Pyth on Solana?
+
+Solana allows Pyth to continuously stream such data at a subsecond latency and at affordable costs.
+
+https://pythnetwork.medium.com/pythnetworkwantstogofast26596a7c1f97
+
+
+3. What is special about Pyth’s data quality?
+
+Pyth’s publishers are all firstparty providers, meaning they own and create the data they send to Pyth). Data is not taken from opaque or questionable sources.
+
+Pyth’s data is sent directly from an original source to the blockchain, as opposed to being aggregated from a third party or collected from the public internet.
+
+The entire data publishing and aggregation process on the Pyth network is transparent, onchain and verifiable.
+
+https://pythnetwork.medium.com/publishervsreporternetworkse6b11f79abb0
+
+
+4. What are the different roles on the Pyth network?
+
+Publisher
+Delegator
+Consumer
+
+5. Who can use Pyth’s data?
+
+Pyth’s data is free and continuously streaming: anyone can use it, and Consumers will be able to pay data fees to hedge against oracle risk (receive a payout if price feeds do not perform as expected).
+
+
+Medium Questions
+
+6. What are Pyth’s Confidence Intervals? What do “wider” or “larger” Confidence Intervals mean?
+
+Confidence Intervals are reflections of publishers’ measurement uncertainties of their own published prices. The Confidence Interval band around a price illustrates where the price is most likely to be. Wider Intervals mean more uncertainty for the price at that point in time.
+
+This is a unique feature to the Pyth network. Reporter Networks would have extreme difficulty replicating this kind of feature.
+
+https://pythnetwork.medium.com/whatisconfidenceuncertaintyinaprice649583b598cf
+
+See also: https://pythnetwork.medium.com/pythiad1thejourneysofarc4c951271805 (”Got Confidence” section)
+
+
+7. Why does Pyth aggregate its publisher’s price quotes?
+
+Aggregation allows Pyth to:
+
+1) remove and resist outlier prices such that the final price output (for a product supported by multiple publishers) is accurate.
+
+2) generate an ‘aggregate Confidence Interval’ to determine the price uncertainty for the final price output.
+
+3) Pyth to generate a final price output which cannot be significantly influenced by a small group of publishers.
+
+https://docs.pyth.network/howpythworks/priceaggregation
+
+See also: https://pythnetwork.medium.com/pythpriceaggregationproposal770bfb686641
+
+Further reading: https://pyth.network/whitepaper
+
+
+8. Which of the following is true (in terms of the Pyth whitepaper)?
+
+Publishers publish price and confidence intervals and earn a share of data fees in exchange.
+
+Consumers read price feeds, incorporate data into smart contracts or dApps, and optionally pay data fees.
+
+Delegators stake tokens and earn data fees in exchange for potentially losing their stake if the oracle is inaccurate.
+
+Price aggregation combines the price feeds of individual publishers into a single price feed for the product.
+
+Consumers do not stake insofar that they are Consumers. Of course, one can hold multiple roles in the network. A Consumer could likewise choose to be a Delegator, technically speaking.
+
+Governance determines many parameters of the Pyth network, but qualitative features like the literal name of “Pyth network” do not fall under governance’s domain...
+
+Further reading: https://pyth.network/whitepaper
+
+
+
+9. Parts of the Pyth protocol will run in epochs. What is an epoch?
+
+A number of Solana slots corresponding to approximately one week of realtime.
+
+See: https://pyth.network/whitepaper
+
+See also: https://docs.solana.com/terminology
+
+
+
+Hard Questions
+
+10. Where does the name Pyth come from anyways?
+
+Pyth is a reference to Pythia, the high priestess of the Temple of Apollo.
+
+The Note appended to Question 10 was deliberately misleading. We do not apologize.
+
+
+
+11. How long do the data fees paid by consumers cover for an oracle failure?
+
+4 epoch after the fees have been paid.
+
+See: https://pyth.network/whitepaper
+
+
+
+12. Why is requesting to unstake instantaneous, but the receipt of your unstaked tokens delayed?
+
+This staking design guarantees that the quantity of PYTH tokens staked toward any given activity remains constant within an epoch.
+
+See: https://pyth.network/whitepaper
+
+
+13. What is true about the Pyth network’s HUMAN task process?
+
+The HUMAN task is essentially an approach towards providing a trustless benchmark between onchain results and offchain truth for disputes over the oracle’s results.
+
+A Claim includes the product for which incorrect data appeared, the time interval when that incorrect data appeared, and the results of a HUMAN protocol task to determine the truth of the claim and which publishers were at fault.
+
+HUMAN task will ask a random sample of workers to report several pieces of offchain information, including the maximum and minimum price for the product during the time interval (in question) on a fixed set of reference exchanges.
+
+Note: The HUMAN task will involve opensource software...*
+
+See: https://pyth.network/whitepaper
+
+
+
+14. The order book (as a trade execution model) gives rise to what is known as the bidask spread. Exchange ABC is a publisher for Pyth for Feed X/Y. How does the bidask spread inform the aggregate output for X/Y?
+
+A correct answer would say something like:
+
+“A data provider focused on a particular market could represent confidence as the bid / ask spread on that venue.”
+
+See: https://pythnetwork.medium.com/whatisconfidenceuncertaintyinaprice649583b598cf
+Confer with: https://pythnetwork.medium.com/pythiad2liberatingfirstpartydataa7ccb865ed62 (”New Publishers!” section)
+
+
+
+15. Financial market data can be defined as a combination of the following:
+
+Trade orders defining the prices traders with to trade at.
+
+Prices at which trades have just occurred in general.
+
+See: https://pythnetwork.medium.com/pythandfinancialmarketdata978aac337e8
+
+
+
+Legendary Questions
+
+Congratulations on making it this far, by the way. You have proven your valiance. Very well done!
+
+16. How often (at what frequency) will Delegators earn their rewards? (Assuming no claim has been raised and ratified).
+
+Note: This is not to be mistaken for Publisher rewards!
+
+This can be inferred.
+
+The data staking mechanism allows Delegators to stake tokens to earn fees. (Whitepaper p.3)
+
+The data staking mechanism collects data fees from Consumers and distributes a share to Delegators. (p.3)
+
+The remainder goes into a reward pool that is distributed to Publishers. (p.3)
+
+The Rewards mechanism will distribute rewards to Publishers at the end of each epoch. (p.9).
+
+Insofar as Publishers are rewarded, a splitting of a reward pool must have happened such that Delegators have been rewarded too. Furthermore, we know that the protocol runs strictly in per epoch periods, so Delegators should not be receiving rewards at different times than Publishers qua staker.
+
+
+
+17. Suppose there are 5 data providers publishing for a feed. Assuming all else is equal, how much will each publisher earn in rewards from the data fees pool (for that feed), percentagewise?
+
+One reward pool exists for that product.
+
+20% of the pool would be distributed among Publishers.
+
+Since there are 5 Publishers, each one would receive up to 4% of the original pool.
+
+
+18. Let’s say a borrowlending app (Consumer) uses the Pyth confidence interval as well as the price quote from Feed P/Q. (Good for them!). At time t(0), the price of P is 1000Q plusminus 50Q.
+
+Consumer computes a range in which the true price (probably) lies, using a multiple of 1.
+
+Users on Consumer are borrowing Q. What is the LEAST conservative price (P) which Consumer can impose on its borrowers for liquidation purposes? (Conservative meaning the Consumer is avoiding liquidating users).
+
+Admittedly, this question is a bit unfair and esoterically worded.
+
+Consumer is lending Q to its users. P is priced in Q. For example, for the SOL/USD feed, SOL is priced in USD.
+
+In our question, the Consumer is choosing the least conservative price P, meaning they are preferring to liquidate its users as opposed to not liquidating.
+
+Yes, there is a true price Q for any 1 unit of P. However, the Confidence Interval reflects measurement uncertainty across all publishers backing product (price feed) P/Q. Hence, Pyth is putting out an aggregate Price P in terms of Q, plus a Confidence Interval. So the price of 1 P is xQ plus minus some Confidence Interval.
+
+The Consumer is trying to liquidating its users: this implies that the users, who are borrowing (short) Q should hopefully not hit their margin thresholds. Q should not be too “expensive”.
+
+But wait, what is the collateral for Q? Is it Q or P?
+
+If it were Q, then none of the answers would technically be relevant. (I.e. forex is just purchasing parity).
+
+We can infer, then, that P is the collateral for the users’ borrowing Q. If Consumer is trying hard to liquidate its users, then they will want to say that the value of P at t(0) is ‘too cheap’. How ‘cheap’? According to the Confidence Interval, whereby Consumer is computing a range using a multiple of 1, the (lowest) Price of P is 1000Q minus 50Q. P is worth 950Q, says the Consumer. Users deemed to not have enough P as collateral may get liquidated.
+
+
+19. How frequently has a new publisher joined the Pyth network since Pyth was first publicly announced?
+
+Pyth’s hello world moment was April 7, 2021.
+
+Quiz IV was published on April 4, 2022. That’s approximately 51.71 weeks.
+
+As of April 4, 2022, Pyth had announced 53 publishers. That’s a little more than 1 publisher per week or epoch.
+
+
+20. Pyth has many stakeholders and network supporters. Can you identify them in the list below?
+
+The correct answer is that every single name in the list is a stakeholder or supporter of the Pyth network. The full list, plus some interesting comments and links for special cases:
+
+01 Protocol: Consumer
+
+Alameda Research: Publisher
+
+Amber Group: Publisher
+
+Apricot: Consumer
+
+Bonfida: Consumer
+
+CoinShares: Publisher
+
+Cypher: Consumer
+
+Crux: Consumer. This is interesting. Crux serves data to its own crypto data users. So Crux serves Pyth data to these users!
+https://twitter.com/PythNetwork/status/1506641837267824647
+
+DFlow: Consumer
+
+FTX: Publisher
+
+Gate.io: Publisher
+
+Hubble: Consumer
+
+HXRO: Consumer
+
+Ideal Prediction: Consumer. Firstever crypto analytics API using Pyth network market data!
+https://twitter.com/PythNetwork/status/1488844545081200646
+
+IEX Cloud: Publisher
+
+Jane Street: Publisher
+
+Jet Protocol: Consumer
+
+Jump Trading: Publisher
+
+Katana: Consumer
+
+Mango Markets: Consumer
+
+Neon EVM: Integrationsrelated partner.
+https://www.businesswire.com/news/home/20211229005282/en/NeonLabsIntegrateswiththePythNetworktoUnlockHiFiPriceFeedsforDevelopers
+
+Port Finance: Consumer
+
+PsyOptions: Consumer
+
+Raydium: Publisher
+
+Ribbon Finance: Consumer. Ribbon automatically settles vaults on Solana using Pyth’s price feeds and Zeta FLEX.
+https://twitter.com/PythNetwork/status/1499702605064384517
+
+Serum: Publisher
+
+Solend: Consumer
+
+Solrise Finance: Consumer
+
+Synthetify: Consumer
+
+Three Arrows Capital: Publisher
+
+UXD: Consumer
+
+Wintermute: Publisher
+
+Zeta Markets: Consumer
+
+0x Labs: Publisher
+
+Answers for Quiz X (#10).
+
+Easy:
+
+1. What is Pyth network?
+
+Pyth network sends data from the realworld to the blockchain.
+
+Pyth network unlocks latencysensitive financial data that is typically kept behind the “walled gardens” of centralized institutions.
+
+Pyth network is a data aggregation platform where some of the best global financial players provide their proprietary data to the world.
+
+2. What is special about Pyth’s publishers (data sources)?
+
+Pyth’s publishers are major financial players who are owners of valuable data and who possess strong market expertise.
+
+Pyth’s publishers are creators and owners of unique financial data. (They do not usually sell this data as part of their daily operations).
+
+3. What are the different roles on the Pyth network?
+
+Publishers  provide data to Pyth to earn rewards
+
+Consumers  use Pyth’s data securely
+
+Delegators  support Pyth network to earn rewards
+
+4. What are the upcoming utilities of the $PYTH token? (Note, the $PYTH token is currently not listed. Please be cautious of fraudsters.)
+
+Consumers can consume Pyth data for their applications and (optionally) pay data fees in $PYTH for protection against oracle risk.
+
+Publishers must stake $PYTH in order to submit data to the Pyth network and earn a share of data fees for their work.
+
+Publishers will have their ($PYTH) stakes slashed if they submit bad data (delayed, inaccurate, or obviously copied) data to the Pyth network.
+
+Delegators can stake $PYTH to help secure the network’s price feeds, encourage more publishers and consumers to participate, and earn rewards for doing so.
+
+Anyone can use $PYTH to vote in Pyth network’s coinstaking governance system.
+
+Medium:
+
+5. Who uses Pyth data?
+
+See https://pyth.network/consumers. Note that other oracles, at least to our knowledge, do not use Pyth data…
+
+Ribbon Finance
+
+Mango Markets
+
+Solend
+
+01 Exchange
+
+Katana
+
+Friktion
+
+Bonfida
+
+Port Finance
+
+Zeta Markets
+
+Synthetify
+
+Hubble
+
+Hedge
+
+6. What are the requirements for using Pyth data?
+
+See also: https://github.com/pythnetwork
+
+Any participant can use Pyth’s data for free.
+
+7. What is a confidence interval in Pyth network? Why is it important?
+
+The confidence interval is a “band” around a price which shows where the price is most likely to be. Wider bands means more uncertainty in that price during that point in time. This metric allows Consumers to make smarter decisions with Pyth’s data.
+
+https://pythnetwork.medium.com/649583b598cf
+Medium
+What is Confidence/Uncertainty in a Price?
+Pyth data providers stream a price along with the confidence/uncertainty that they estimate using information available to them.
+What is Confidence/Uncertainty in a Price?
+Hard:
+
+8. What are the benefits of Pyth aggregating multiple publishers for a single price feed?
+
+Aggregation allows Pyth to eliminate outlier price inputs so that the final output is accurate.
+
+Aggregation allows Pyth to generate an aggregate price, aggregate confidence interval, aggregate EMA (exponential moving average), and EMAC (exponential moving average confidence).
+
+Pyth’s aggregation is done completely onchain. This is a unique characteristic of Pyth that makes Pyth’s data more transparent, secure, and safe.
+
+9. Where does the name Pyth come from anyways?
+
+Note: https://github.com/pythnetwork/pythclientpy
+
+None of the above.
+
+Pyth is a reference to Pythia, the high priestess and oracle of Delphi.
+GitHub
+GitHub  pythnetwork/pythclientpy: Python client for pyth oncha...
+Python client for pyth onchain data. Contribute to pythnetwork/pythclientpy development by creating an account on GitHub.
+GitHub  pythnetwork/pythclientpy: Python client for pyth oncha...
+Legendary:
+
+10. Extra Credit Essay: What makes Pyth unique from other oracles?
+
+Possible answers:
+
+Sourcing: Pyth uses only firstparty providers. Pyth’s publishers own their data, so there are no data restriction issues for Pyth downstream. Pyth does not scrape from public internet sources. The data sources on the Pyth network can therefore be held liable for their data’s quality!
+
+More on sourcing: Pyth’s data sources are worldclass market participants. The level of data quality (fidelity, accuracy) is unparalleled. See Pyth’s performance during the LUNA event and how Pyth could quote at even the smallest ticks.
+
+Transparency and Security: Pyth’s publishers must send price and confidence quotes to Pyth’s fully onchain program. There are no offchain components in the aggregation. Everyone in the world can see the same inputs and receives the same output at the same time. Information symmetry is maximized. The known vectors of attack for MEV are not present in Pyth network.
+
+Historical: Pyth is a historic first where market participants who are cutthroat and would never be in the same room are now collaborating together, and on a DeFi project of all things!
+
+Business Model: Pyth’s business model is unique. Data is free and future Consumers will be able to pay data fees to become eligible for payout in case of oracle failure. This is a model that accommodates everyone, from people running simple dashboards to people serving millions of users and who must protect those users and funds.
+
+The answers to Quiz #12, Pyth's Next Steps
+
+1/ What is the Pyth network's mission?
+
+To make every asset type available on every chain, and empower data owners and data users.
+
+Simple as that!
+
+You can’t “trade” on the Pyth platform (we’re not a DEX) and we don’t collect data from unknown or hidden sources.
+
+2/ Who are Pyth data providers?
+
+Every household name in that list is a Pyth data provider.
+
+Yes, FTX and Huobi.
+
+Yes, CBOE and Jane Street.
+
+Yes, MEXC and Gemini and AAX and everyone else.
+
+3/ Who is using Pyth data?
+
+Yes, all these names from Solana, Ethereum, and BNB Chain are using Pyth data: names like Venus, Ribbon, Solend, Zeta, and many more!
+
+4/ Why do developers like building on Pyth?
+
+Don’t assume Pyth is just about big publishers! 90% of Solana DeFi uses Pyth. Pyth data is extending now into BNB Chain, Aptos, and other EVM chains with launch partners lined up!
+
+Why?
+
+Pyth the fastest oracle.
+
+Pyth is the only oracle that protects you with Confidence Intervals.
+
+Pyth sources from firstparty sources — data owners who truly know asset prices. No gimmicks, no playing a long game of telephone, no nonsense.
+
+
+5/ How does Wormhole help Pyth go crosschain?
+
+Wormhole allows Pyth to relay price updates from the Pyth program to all the Wormholesupported chains.
+
+6/ How many Pyth price feeds will be live on BNB Chain?
+
+All of them.
+
+This scalability applies to every single Wormhole chain.
+
+Think about that.
+
+7/ Which BNB Chain feeds does Pyth currently support?
+
+https://pyth.network/pricefeeds is a great place to get some…alpha…
+
+8/ Which chain(s) will Pyth expand to after BNB Chain?
+
+Heh. All of them.
+
+
+1112/ What are the planned utility functions of the PYTH token? What will Delegators do?
+
+Readers of the whitepaper benefit here. There’s a lot of planned utility. Governance is key to this! We can’t emphasize this enough. The network is becoming your network too.
+
+13/ Why are so many institutions and people choosing to get involved in the Pyth network?
+
+It can be easy to lose track of the big picture!
+
+Problem:
+
+The data and oracle solutions before Pyth were incomplete and cannot smoothly scale to support multiple asset prices at high quality and speeds.
+
+Pyth came up with an answer. The publishers understand what Pyth is trying to do. They understand that the oracle problem is fundamental to the growth of Web3. If you’re betting on Web3 and DeFi in to grow, you need to first solve the oracle problem.
+
+The cool thing? Pyth empowers builders AND data owners.
+
+Pyth, like Airbnb with spare rooms and vacation homes, unlocks new highquality sources of data supply. People who own valuable data can now contribute that data and earn rewards!
+
+1. Who was the Pythia?
+
+Pythia refers to a priestess who communed with the gods. https://medium.com/@pythnetwork/whatsinanamepythandthepythiaac1bc08c3d3c
+
+2. What is the Pyth Network?
+
+We deliver data. We're a blockchain oracle focusing on financial data. We're not a trading platform!
+
+3. What's the relationship between Pythia and the Pyth Network?
+
+Pyth is a reference to Pythia, Oracle of Delphi. Pyth is therefore the Oracle of DeFi.  It would be wild if the Discord admins were getting it wrong since April 2021 :sad:
+
+4. Where is Pyth data available?
+
+Ethereum
+Optimism
+Arbitrum
+Solana
+Aurora
+Aptos
+Celo
+And way more. See pyth.network for some teasers...
+
+5. Who is using Pyth data?
+
+Who isn't??
+
+Synthetix, Kwenta, CAP Finance, Ribbon, Aurigami, Solend, Tullip...
+
+6. Pyth data comes from market makers, exchanges, and trading firms. Why?
+
+We accidentally made this into a trick question. There's multiple answers that are right here:
+
+These players are firstparty data sources: they create and own the data they give to Pyth. This means greater transparency, security, and assurance of data quality!
+
+These market participants also actively participate in price discovery. They truly know the prices of different assets!
+
+By attracting these kinds of market players to the network, Pyth gets access to data that you would otherwise have to pay a lot of money to obtain: think of Bloomberg terminal and exchange API subscriptions! (More than $30K a year!)
+
+7. What is unique about Pyth data?
+
+A lot!
+
+Pythnet prices update every 400ms. Apps on other chains pull in that data whenever they need it  no wasted gas!
+
+Pyth offers UNIQUE data for FREE: Live US equities, live FX (even outside normal trading hours!), metals and more!
+
+No middlemen. All Pyth feeds available on all chains. Scalable.
+
+
+8. Where is Pyth generating fees? (Ignore Solana for now)
+
+The Pyth protocol collects a small "update fee" for each update request from apps on other blockchains. See https://docs.pyth.network/ for more information.
+
+We will find the people who answered "cookie sales" and transform them into cookies to be eaten.
+
+9. Why are major household names joining the Pyth Network?
+
+These data providers are betting on Web3 and DeFi to grow. They know that the solutions before Pyth were incomplete and unlikely to scale to support multiple asset classes at high fidelity.
+
+Pyth, like Airbnb with spare rooms and vacation homes, unlocks new highquality sources of data supply by giving these market players an incentive to make their data public.
+
+Pyth's pull oracle model is gas efficient, updates at high frequencies, delivers data at low latencies, offers a wide range of price feeds and safety features like Confidence Intervals, and is reliable under volatile conditions thanks to Pythnet.
+
+Pyth data powers 100 applications for 12+ blockchains. Pyth prices update >200,000 a day. Pyth has supported more than $35 billion in total trading volume. The Pyth client has been downloaded over 650K times. Pyth is a hidden gem. Our hidden gem.
+
+What does the Pyth network do?
+
+
+Delivers lowlatency prices to multiple blockchains
+
+Aggregates data from multiple data sources for publishing to DeFi apps
+
+Offers 200+ price feeds across crypto, equities, commodities, and FX
+
+...
+
+What is the relationship between Pyth and Wormhole?
+
+
+Wormhole allows Pyth price data to reach multiple blockchains
+
+...
+
+Select the correct flow of data in the Pyth network
+
+
+Data Providers  Pyth Program (Aggregation)  Wormhole  Blockchains
+
+...
+
+Which of the following is true about Pyth price feeds?
+
+
+Pyth price feeds update at high frequency, faster than most block times.
+
+Pyth price feeds are lowlatency, users always get the freshest price.
+
+There are 200+ price feeds available on every Pythsupported chain.
+
+Once Pyth releases a new price feed, it becomes available on every chain.
+
+Pyth prices come from firstparty data. Accurate, clean, compliant.
+
+Pyth prices are valuable. Live US equities? Bloomberg should be afraid.
+
+...
+
+What is Pythnet?
+
+
+Pythnet is an appchain based on the Solana codebase
+
+Pythnet allows Pyth to scale by 20x to thousands of price feeds
+
+Pythnet allows Pyth to deliver pricing to other chains via Wormhole
+
+Pythnet separates Pyth's uptime and performance from Solana
+
+...
+
+What do you get when you combine Pythnet and Wormhole?
+
+
+Pythnet Price Feeds: A new price oracle model
+
+The other acceptable answer was: Magic and miracles
+...
+
+What is a Push Oracle?
+
+
+A push oracle can provide realtime updates to a blockchain environment without the need for a smart contract to initiate a request for that data.
+
+A push oracle continually “pushes” onchain price updates at a set frequency
+
+...
+
+What is a Pull Oracle?
+
+
+A pull oracle operates by waiting for requests from a smart contract before providing data.
+
+When a smart contract needs to retrieve data from a pull oracle, it sends a request to the oracle, which then provides the data to the contract.
+
+...
+
+Pyth is now a lowlatency pull oracle. What does this mean?
+
+
+Pyth allows applications to "pull" data from Pythnet to their native blockchain whenever they want. The applications pay for the data they use.
+
+Pyth does not require someone to pay for a stream of price updates to every blockchain (including the price updates that no one uses). The pull oracle model is very gas efficient.
+
+The gas efficiency of the Pyth pull oracle architecture allows for highfrequency price updates (Pythnet can update without sending data to new chains).
+
+The gas efficiency of the Pyth pull oracle architecture allows for lowlatency prices (apps pull the freshest prices instead of waiting for pushes/heartbeats).
+
+The Pyth pull oracle architecture allows all 200+ Pyth price feeds to be on every blockchain at once. Apps on different chains all pull from one "offchain" source: Pythnet.
+...
+
+Pyth offers the same 200+ price feeds on every chain. Other oracles can't do this. Why does this matter?
+
+Summary answer: This is great for teams who want to go multichain. They can access the same markets anywhere they build.
+
+...
+
+When Pyth spins up a price feed on one blockchain, it is immediately available on all 17+ other Pythsupported chains. Why would DeFi teams find this exciting?
+
+Teams who spin up their own price feeds with Pyth can thereby extend exposure to that asset in 18+ blockchains. Few people understand this.
+
+...
+
+A lot of applications out there are now #PoweredByPyth. Why should you start using Pythpowered applications as much as possible?
+
+
+Pyth has many virtues. We leave it to everyone to discuss.
