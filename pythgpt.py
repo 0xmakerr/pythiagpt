@@ -34,5 +34,6 @@ def pyth_gpt(message):
         similarity_top_k=3,
         streaming=False,
     )
+    # enter your prompt
     response = query_engine.query(f"{message}")
     return response
