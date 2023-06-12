@@ -28,18 +28,18 @@ llm_predictor = ChatGPTLLMPredictor(llm=ChatOpenAI(temperature=0, model_name="gp
 service_context = ServiceContext.from_defaults(llm_predictor=llm_predictor, prompt_helper=prompt_helper)
 
 
-# builds new index from our data folder
+# builds new index from our data folder and GitHub repos
 def build_index():
     global service_context
 
     combined_documents = []
     # load directory documents
-    directory_document = SimpleDirectoryReader('./data').load_data()
+    directory_document = SimpleDirectoryReader('./data', recursive=True).load_data()
     combined_documents += directory_document
     # load github documents
     github_token = GITHUB_API_KEY
     owner = "pyth-network"
-    repos = ["pyth-client-py", "pyth-client-js", "pyth-client-rs"]
+    repos = ["pyth-client-py", "pyth-client-js", "pyth-client-rs", "pyth-sdk-solidity", "pyth-sdk-rs", "pyth-gitbook", "pyth-crosschain"]
     branch = "main"
     # build documents out of all repos
     for repo in repos:
