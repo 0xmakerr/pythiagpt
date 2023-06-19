@@ -19,12 +19,12 @@ GITHUB_API_KEY = os.environ["GITHUB_API_KEY"]
 # set maximum input size
 max_input_size = 4096
 # set number of output tokens
-num_output = 500
+num_output = 1000
 # set maximum chunk overlap
 max_chunk_overlap = 20
 prompt_helper = PromptHelper(max_input_size, num_output, max_chunk_overlap)
 # define LLM
-llm_predictor = ChatGPTLLMPredictor(llm=ChatOpenAI(temperature=0, model_name="gpt-3.5-turbo", streaming=False, max_tokens=num_output))
+llm_predictor = ChatGPTLLMPredictor(llm=ChatOpenAI(temperature=0, model_name="gpt-3.5-turbo-0613", streaming=False, max_tokens=num_output))
 service_context = ServiceContext.from_defaults(llm_predictor=llm_predictor, prompt_helper=prompt_helper)
 
 
@@ -48,6 +48,32 @@ def build_index():
     # build index
     index = GPTVectorStoreIndex.from_documents(combined_documents, service_context=service_context)
     # store index in ./storage
+    index.storage_context.persist()
+
+
+# used to add documents to existing stored index
+def add_to_index():
+    github_token = GITHUB_API_KEY
+    owner = "pyth-network"
+    repos = ["pyth-serum", "publisher-utils", "solmeet-workshop-june-22", "oracle-sandbox", "pyth-sdk-js",
+             "program-authority-escrow", "pyth-observer", "audit-reports", "example-publisher", "pyth-agent",
+             "program-admin", "pyth-client", "pythnet", "governance"]
+    branch = "main"
+
+    combined_documents = []
+    for repo in repos:
+        if repo == "governance":
+            document = GithubRepositoryReader(github_token=github_token, owner=owner, repo=repo, use_parser=False, verbose=False).load_data(branch="master")
+        elif repo == "pythnet":
+            document = GithubRepositoryReader(github_token=github_token, owner=owner, repo=repo, use_parser=False, verbose=False).load_data(branch="pyth")
+        else:
+            document = GithubRepositoryReader(github_token=github_token, owner=owner, repo=repo, use_parser=False, verbose=False).load_data(branch=branch)
+        combined_documents += document
+
+    storage_context = StorageContext.from_defaults(persist_dir="./storage")
+    index = load_index_from_storage(storage_context)
+    for doc in combined_documents:
+        index.insert(doc)
     index.storage_context.persist()
 
 

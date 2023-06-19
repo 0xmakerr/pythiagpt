@@ -1,7 +1,9 @@
 import discord
+import math
 
 intents = discord.Intents.default()
 intents.message_content = True
+MAX_MESSAGE_LENGTH = 1900
 
 
 class DiscordClient(discord.Client):
@@ -23,13 +25,26 @@ class DiscordClient(discord.Client):
         print(f"Synced, {self.user} is running!")
 
 
-class Sender:
-    async def send_message(self, interaction, send, receive):
-        try:
-            user_id = interaction.user.id
-            response = f'> **{send}** - <@{str(user_id)}> \n\n{receive}'
+async def send_message(interaction, send, receive):
+    try:
+        user_id = interaction.user.id
+        response = f'> **{send}** - <@{str(user_id)}> \n\n{receive}'
+        message_length = len(response)
+
+        if message_length <= MAX_MESSAGE_LENGTH:
             await interaction.followup.send(response)
-            print(f"{user_id} sent: {send}, response: {receive}")
-        except Exception as e:
-            await interaction.followup.send('> **Error: Something went wrong, please try again later!**')
-            print(f"Error while sending:{send} in chatgpt model, error: {e}")
+        else:
+            number_of_messages = math.ceil(message_length / MAX_MESSAGE_LENGTH)
+            starting_index = 0
+
+            for current_message_num in range(1, number_of_messages + 1):
+                if current_message_num == number_of_messages:
+                    await interaction.followup.send(response[starting_index:])
+                else:
+                    last_space_index = response.rfind(" ", starting_index, MAX_MESSAGE_LENGTH * current_message_num)
+                    await interaction.followup.send(response[starting_index:last_space_index])
+                    starting_index = last_space_index + 1
+        print(f"{user_id} sent: {send}, response: {receive}")
+    except Exception as e:
+        await interaction.followup.send('> **Error: Something went wrong, please try again later!**')
+        print(f"Error while sending:{send} in chatgpt model, error: {e}")
