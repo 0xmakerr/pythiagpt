@@ -1,1 +1,2 @@
 storage/vector_store.json filter=lfs diff=lfs merge=lfs -text
+storage/all_pyth_repos/vector_store.json filter=lfs diff=lfs merge=lfs -text
