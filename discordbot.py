@@ -3,7 +3,7 @@ import math
 
 intents = discord.Intents.default()
 intents.message_content = True
-MAX_MESSAGE_LENGTH = 1900
+MAX_MESSAGE_LENGTH = 1950
 
 
 class DiscordClient(discord.Client):

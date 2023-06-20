@@ -1,4 +1,6 @@
 import os
+import openai
+import tiktoken
 from dotenv import load_dotenv
 from llama_index import (SimpleDirectoryReader,
                          GithubRepositoryReader,
@@ -7,25 +9,25 @@ from llama_index import (SimpleDirectoryReader,
                          ServiceContext,
                          StorageContext,
                          load_index_from_storage)
+from llama_index.callbacks import CallbackManager, TokenCountingHandler
 from langchain.chat_models import ChatOpenAI
 from llama_index.llm_predictor.chatgpt import ChatGPTLLMPredictor
 from base_prompt import CHAT_REFINE_PROMPT, CHAT_QA_PROMPT
 
 load_dotenv()
-OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
+openai.api_key = os.environ["OPENAI_API_KEY"]
 GITHUB_API_KEY = os.environ["GITHUB_API_KEY"]
 
 # define prompt helper
-# set maximum input size
-max_input_size = 4096
-# set number of output tokens
-num_output = 1000
-# set maximum chunk overlap
-max_chunk_overlap = 20
-prompt_helper = PromptHelper(max_input_size, num_output, max_chunk_overlap)
+context_window = 4096
+num_output = 500
+prompt_helper = PromptHelper(context_window, num_output)
+# setup token counter
+token_counter = TokenCountingHandler(tokenizer=tiktoken.encoding_for_model("gpt-3.5-turbo-0613").encode)
+callback_manager = CallbackManager([token_counter])
 # define LLM
-llm_predictor = ChatGPTLLMPredictor(llm=ChatOpenAI(temperature=0, model_name="gpt-3.5-turbo-0613", streaming=False, max_tokens=num_output))
-service_context = ServiceContext.from_defaults(llm_predictor=llm_predictor, prompt_helper=prompt_helper)
+llm_predictor = ChatGPTLLMPredictor(llm=ChatOpenAI(temperature=0, model_name="gpt-3.5-turbo-0613", streaming=False, max_tokens=512))
+service_context = ServiceContext.from_defaults(llm_predictor=llm_predictor, prompt_helper=prompt_helper, callback_manager=callback_manager)
 
 
 # builds new index from our data folder and GitHub repos
@@ -92,4 +94,11 @@ def pyth_gpt(message):
                                          service_context=service_context)
     # enter your prompt
     response = query_engine.query(message)
+    # token counter
+    print('Embedding Tokens: ', token_counter.total_embedding_token_count, '\n',
+          'LLM Prompt Tokens: ', token_counter.prompt_llm_token_count, '\n',
+          'LLM Completion Tokens: ', token_counter.completion_llm_token_count, '\n',
+          'Total LLM Token Count: ', token_counter.total_llm_token_count, '\n')
+    token_counter.reset_counts()
+
     return str(response)
