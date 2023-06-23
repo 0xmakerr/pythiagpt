@@ -13,6 +13,7 @@ from llama_index.callbacks import CallbackManager, TokenCountingHandler
 from langchain.chat_models import ChatOpenAI
 from llama_index.llm_predictor.chatgpt import ChatGPTLLMPredictor
 from base_prompt import CHAT_REFINE_PROMPT, CHAT_QA_PROMPT
+from llama_index.evaluation import ResponseEvaluator
 
 load_dotenv()
 openai.api_key = os.environ["OPENAI_API_KEY"]
@@ -91,9 +92,15 @@ def pyth_gpt(message):
                                          refine_template=CHAT_REFINE_PROMPT,
                                          similarity_top_k=3,
                                          streaming=False,
-                                         service_context=service_context)
+                                         service_context=service_context,
+                                         vector_store_query_mode="mmr")
     # enter your prompt
     response = query_engine.query(message)
+    # define evaluator
+    evaluator = ResponseEvaluator(service_context=service_context)
+    # evaluate if the response matches any source context (returns "YES"/"NO")
+    eval_result = evaluator.evaluate(response)
+    print("Response matches any source context: " + str(eval_result))
     # token counter
     print('Embedding Tokens: ', token_counter.total_embedding_token_count, '\n',
           'LLM Prompt Tokens: ', token_counter.prompt_llm_token_count, '\n',
