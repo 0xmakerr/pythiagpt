@@ -10,7 +10,7 @@ DISCORD_API_KEY = os.getenv('DISCORD_API_KEY')
 def run():
     client = DiscordClient()
 
-    @client.tree.command(name="chat", description="Have a chat with PythGPT")
+    @client.tree.command(name="chat", description="Ask Pythia a question")
     async def chat(interaction: discord.Interaction, *, message: str):
         user_id = interaction.user.id
         if interaction.user == client.user:

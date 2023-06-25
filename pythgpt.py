@@ -27,7 +27,7 @@ prompt_helper = PromptHelper(context_window, num_output)
 token_counter = TokenCountingHandler(tokenizer=tiktoken.encoding_for_model("gpt-3.5-turbo-0613").encode)
 callback_manager = CallbackManager([token_counter])
 # define LLM
-llm_predictor = ChatGPTLLMPredictor(llm=ChatOpenAI(temperature=0, model_name="gpt-3.5-turbo-0613", streaming=False, max_tokens=512))
+llm_predictor = ChatGPTLLMPredictor(llm=ChatOpenAI(temperature=0, model_name="gpt-3.5-turbo-0613", streaming=False, max_tokens=1000))
 service_context = ServiceContext.from_defaults(llm_predictor=llm_predictor, prompt_helper=prompt_helper, callback_manager=callback_manager)
 
 
@@ -92,8 +92,7 @@ def pyth_gpt(message):
                                          refine_template=CHAT_REFINE_PROMPT,
                                          similarity_top_k=3,
                                          streaming=False,
-                                         service_context=service_context,
-                                         vector_store_query_mode="mmr")
+                                         service_context=service_context)
     # enter your prompt
     response = query_engine.query(message)
     # define evaluator
