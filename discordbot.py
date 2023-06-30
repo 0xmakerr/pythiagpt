@@ -51,6 +51,6 @@ async def send_message(interaction, send, receive):
 
 
 async def send_timeout(interaction):
-    embed = discord.Embed(colour=discord.Colour.from_str("#503b83"), description="**Mighty Pythian, kindly await the resolution of a previous Pythian's question. Your patience is appreciated, as the wisdom of Pythia shall soon illuminate your path. <:pythfresh:1030876823137034413>**")
+    embed = discord.Embed(colour=discord.Colour.from_str("#503b83"), description="**Mighty Pythian, kindly await the resolution of a previous Pythian's question. Your patience is appreciated, as the wisdom of [Pythia](https://pyth.network/blog/whats-in-a-name-pyth-and-the-pythia) shall soon illuminate your path. <:pythfresh:1030876823137034413>**")
     embed.set_thumbnail(url="https://i.imgur.com/e87do2V.png")
     await interaction.followup.send(embed=embed)
