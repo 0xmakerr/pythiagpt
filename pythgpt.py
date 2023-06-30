@@ -2,6 +2,7 @@ import os
 import openai
 import tiktoken
 from dotenv import load_dotenv
+from threading import Lock
 from llama_index import (SimpleDirectoryReader,
                          GithubRepositoryReader,
                          PromptHelper,
@@ -18,6 +19,7 @@ from llama_index.evaluation import ResponseEvaluator
 load_dotenv()
 openai.api_key = os.environ["OPENAI_API_KEY"]
 GITHUB_API_KEY = os.environ["GITHUB_API_KEY"]
+thread_lock = Lock()
 
 # define prompt helper
 context_window = 4096
@@ -83,28 +85,29 @@ def add_to_index():
 def pyth_gpt(message):
     global service_context
 
-    # rebuild storage context
-    storage_context = StorageContext.from_defaults(persist_dir="./storage")
-    # load index
-    index = load_index_from_storage(storage_context)
-    # query the index
-    query_engine = index.as_query_engine(text_qa_template=CHAT_QA_PROMPT,
-                                         refine_template=CHAT_REFINE_PROMPT,
-                                         similarity_top_k=3,
-                                         streaming=False,
-                                         service_context=service_context)
-    # enter your prompt
-    response = query_engine.query(message)
-    # define evaluator
-    evaluator = ResponseEvaluator(service_context=service_context)
-    # evaluate if the response matches any source context (returns "YES"/"NO")
-    eval_result = evaluator.evaluate(response)
-    print("Response matches any source context: " + str(eval_result))
-    # token counter
-    print('Embedding Tokens: ', token_counter.total_embedding_token_count, '\n',
-          'LLM Prompt Tokens: ', token_counter.prompt_llm_token_count, '\n',
-          'LLM Completion Tokens: ', token_counter.completion_llm_token_count, '\n',
-          'Total LLM Token Count: ', token_counter.total_llm_token_count, '\n')
-    token_counter.reset_counts()
+    with thread_lock:
+        # rebuild storage context
+        storage_context = StorageContext.from_defaults(persist_dir="./storage")
+        # load index
+        index = load_index_from_storage(storage_context)
+        # query the index
+        query_engine = index.as_query_engine(text_qa_template=CHAT_QA_PROMPT,
+                                             refine_template=CHAT_REFINE_PROMPT,
+                                             similarity_top_k=3,
+                                             streaming=False,
+                                             service_context=service_context)
+        # enter your prompt
+        response = query_engine.query(message)
+        # define evaluator
+        evaluator = ResponseEvaluator(service_context=service_context)
+        # evaluate if the response matches any source context (returns "YES"/"NO")
+        eval_result = evaluator.evaluate(response)
+        print("Response matches any source context: " + str(eval_result))
+        # token counter
+        print('Embedding Tokens: ', token_counter.total_embedding_token_count, '\n',
+              'LLM Prompt Tokens: ', token_counter.prompt_llm_token_count, '\n',
+              'LLM Completion Tokens: ', token_counter.completion_llm_token_count, '\n',
+              'Total LLM Token Count: ', token_counter.total_llm_token_count, '\n')
+        token_counter.reset_counts()
 
-    return str(response)
+        return str(response)
