@@ -2,3 +2,4 @@ discord.py
 llama_index
 python-dotenv
 openai
+llama-hub

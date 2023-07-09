@@ -25,6 +25,15 @@ articles = [
     "https://pyth.network/blog/new-pyth-data-provider-ltp",
     "https://pyth.network/blog/pyth-a-new-model-to-the-price-oracle",
     "https://pyth.network/blog/where-pyth-is-now-q1-2023",
+    "https://pyth.network/blog/pyth-launches-price-oracles-on-mantle-5testnet",
+    "https://pyth.network/blog/new-pyth-data-provider",
+    "https://pyth.network/blog/what-is-a-blockchain-oracle",
+    "https://pyth.network/blog/pyth-in-the-governance-arena-newsletter-42",
+    "https://pyth.network/blog/pyth-launches-price-oracles-on-gnosis",
+    "https://pyth.network/blog/lido-and-pyth-network-join-forces-to-bring-steth-usd-to-20-blockchains",
+    "https://pyth.network/blog/new-pyth-data-provider-selini-capital",
+    "https://pyth.network/blog/pyth-monthly-update-june-2023",
+    "https://pyth.network/blog/where-pyth-is-now-q2-2023",
 ]
 
 for article in articles:
@@ -34,11 +43,11 @@ for article in articles:
 
     soup = BeautifulSoup(response.content, "html.parser")
 
-    post_title = soup.find("div", class_="relative flex items-center border-b border-beige-300 pb-14 pt-20 sm:pb-20")
-    title_body = post_title.find("h1", class_="h2 mt-10 max-w-[650px]").text.strip()
+    post_title = soup.find("div", class_="container relative z-[2]")
+    title_body = post_title.find("h1", class_="h2 max-w-[650px]").text.strip()
 
     post_content = soup.find("div", class_="container relative")
-    post_body = post_content.find("div", class_="postStyle").text.strip()
+    post_body = post_content.find("div", class_="postStyle mx-auto max-w-[800px] pb-12").text.strip()
 
     title_body = re.sub(r'[<>:"/\\|?*]', '', title_body)
     with open(f"data/pyth_blog/{title_body}.txt", mode="w", encoding="utf-8") as article_file:

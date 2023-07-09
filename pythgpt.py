@@ -4,15 +4,15 @@ import tiktoken
 from dotenv import load_dotenv
 from threading import Lock
 from llama_index import (SimpleDirectoryReader,
-                         GithubRepositoryReader,
-                         PromptHelper,
                          GPTVectorStoreIndex,
                          ServiceContext,
                          StorageContext,
-                         load_index_from_storage)
+                         load_index_from_storage,
+                         set_global_service_context,
+                         download_loader)
+from llama_hub.github_repo import GithubRepositoryReader, GithubClient
 from llama_index.callbacks import CallbackManager, TokenCountingHandler
-from langchain.chat_models import ChatOpenAI
-from llama_index.llm_predictor.chatgpt import ChatGPTLLMPredictor
+from llama_index.llms import OpenAI
 from base_prompt import CHAT_REFINE_PROMPT, CHAT_QA_PROMPT
 from llama_index.evaluation import ResponseEvaluator
 
@@ -21,16 +21,13 @@ openai.api_key = os.environ["OPENAI_API_KEY"]
 GITHUB_API_KEY = os.environ["GITHUB_API_KEY"]
 thread_lock = Lock()
 
-# define prompt helper
-context_window = 4096
-num_output = 500
-prompt_helper = PromptHelper(context_window, num_output)
 # setup token counter
-token_counter = TokenCountingHandler(tokenizer=tiktoken.encoding_for_model("gpt-3.5-turbo-0613").encode)
+token_counter = TokenCountingHandler(tokenizer=tiktoken.encoding_for_model("gpt-3.5-turbo").encode)
 callback_manager = CallbackManager([token_counter])
 # define LLM
-llm_predictor = ChatGPTLLMPredictor(llm=ChatOpenAI(temperature=0, model_name="gpt-3.5-turbo-0613", streaming=False, max_tokens=1000))
-service_context = ServiceContext.from_defaults(llm_predictor=llm_predictor, prompt_helper=prompt_helper, callback_manager=callback_manager)
+llm = OpenAI(temperature=0, model="gpt-3.5-turbo", streaming=False, max_tokens=1000)
+service_context = ServiceContext.from_defaults(llm=llm, callback_manager=callback_manager)
+set_global_service_context(service_context)
 
 
 # builds new index from our data folder and GitHub repos
@@ -42,13 +39,21 @@ def build_index():
     directory_document = SimpleDirectoryReader('./data', recursive=True).load_data()
     combined_documents += directory_document
     # load github documents
-    github_token = GITHUB_API_KEY
+    download_loader("GithubRepositoryReader")
+    github_client = GithubClient(GITHUB_API_KEY)
     owner = "pyth-network"
-    repos = ["pyth-client-py", "pyth-client-js", "pyth-client-rs", "pyth-sdk-solidity", "pyth-sdk-rs", "pyth-gitbook", "pyth-crosschain"]
+    repos = ["pyth-client-py", "pyth-client-js", "pyth-sdk-solidity", "pyth-sdk-rs", "documentation", "pyth-crosschain"]
     branch = "main"
     # build documents out of all repos
     for repo in repos:
-        document = GithubRepositoryReader(github_token=github_token, owner=owner, repo=repo, use_parser=False, verbose=False).load_data(branch=branch)
+        loader = GithubRepositoryReader(github_client,
+                                        owner=owner,
+                                        repo=repo,
+                                        filter_directories=(["images"], GithubRepositoryReader.FilterType.EXCLUDE),
+                                        verbose=False,
+                                        concurrent_requests=10,
+                                        )
+        document = loader.load_data(branch=branch)
         combined_documents += document
     # build index
     index = GPTVectorStoreIndex.from_documents(combined_documents, service_context=service_context)
@@ -89,7 +94,7 @@ def pyth_gpt(message):
         # rebuild storage context
         storage_context = StorageContext.from_defaults(persist_dir="./storage")
         # load index
-        index = load_index_from_storage(storage_context)
+        index = load_index_from_storage(storage_context, service_context=service_context)
         # query the index
         query_engine = index.as_query_engine(text_qa_template=CHAT_QA_PROMPT,
                                              refine_template=CHAT_REFINE_PROMPT,
