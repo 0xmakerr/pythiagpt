@@ -63,21 +63,21 @@ def build_index():
 
 # used to add documents to existing stored index
 def add_to_index():
-    github_token = GITHUB_API_KEY
+    download_loader("GithubRepositoryReader")
+    github_client = GithubClient(GITHUB_API_KEY)
     owner = "pyth-network"
-    repos = ["pyth-serum", "publisher-utils", "solmeet-workshop-june-22", "oracle-sandbox", "pyth-sdk-js",
-             "program-authority-escrow", "pyth-observer", "audit-reports", "example-publisher", "pyth-agent",
-             "program-admin", "pyth-client", "pythnet", "governance"]
+    repos = ["pyth-serum"]
     branch = "main"
 
     combined_documents = []
     for repo in repos:
+        loader = GithubRepositoryReader(github_client, owner=owner, repo=repo, filter_directories=(["images"], GithubRepositoryReader.FilterType.EXCLUDE), verbose=False, concurrent_requests=10)
         if repo == "governance":
-            document = GithubRepositoryReader(github_token=github_token, owner=owner, repo=repo, use_parser=False, verbose=False).load_data(branch="master")
+            document = loader.load_data(branch="master")
         elif repo == "pythnet":
-            document = GithubRepositoryReader(github_token=github_token, owner=owner, repo=repo, use_parser=False, verbose=False).load_data(branch="pyth")
+            document = loader.load_data(branch="pyth")
         else:
-            document = GithubRepositoryReader(github_token=github_token, owner=owner, repo=repo, use_parser=False, verbose=False).load_data(branch=branch)
+            document = loader.load_data(branch=branch)
         combined_documents += document
 
     storage_context = StorageContext.from_defaults(persist_dir="./storage")
