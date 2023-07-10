@@ -66,7 +66,9 @@ def add_to_index():
     download_loader("GithubRepositoryReader")
     github_client = GithubClient(GITHUB_API_KEY)
     owner = "pyth-network"
-    repos = ["pyth-serum"]
+    repos = ["pyth-serum", "publisher-utils", "solmeet-workshop-june-22", "oracle-sandbox", "pyth-sdk-js",
+             "program-authority-escrow", "pyth-observer", "audit-reports", "example-publisher", "pyth-agent",
+             "program-admin", "pyth-client", "pythnet", "governance"]
     branch = "main"
 
     combined_documents = []
