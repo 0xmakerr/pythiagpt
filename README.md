@@ -1,5 +1,5 @@
-# pythgpt
-This project allows you to train GPT-3/4 on custom data using LlamaIndex and have a Q/A like conversation with it using discord as it's interface. Specifically this repo is trained on Pyth Network documentation, GitHub repos, blog articles and the Pyth whitepaper.
+# pythiagpt
+This project allows you to train GPT-3/4 on custom data using LlamaIndex and have a Q/A like conversation with it using discord (or refer to [telegram](https://github.com/0xmakerr/pythiagpt_telegram) version) as it's interface. Specifically this repo is trained on Pyth Network documentation, GitHub repos, blog articles and the Pyth whitepaper.
 
 ## Setup
 
