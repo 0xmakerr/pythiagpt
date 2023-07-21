@@ -34,6 +34,13 @@ articles = [
     "https://pyth.network/blog/new-pyth-data-provider-selini-capital",
     "https://pyth.network/blog/pyth-monthly-update-june-2023",
     "https://pyth.network/blog/where-pyth-is-now-q2-2023",
+    "https://pyth.network/blog/new-pyth-data-provider-pulsar",
+    "https://pyth.network/blog/pyth-launches-price-oracles-on-neutron",
+    "https://pyth.network/blog/new-pyth-data-provider-kronos-research",
+    "https://pyth.network/blog/aptos-and-pyth-break-barriers-with-sub-second-oracle-updates-on-aptos",
+    "https://pyth.network/blog/pyth-price-oracle-on-mantle",
+    "https://pyth.network/blog/pythians-in-paris-newsletter-43",
+    "https://pyth.network/blog/pyth-launches-price-oracles-on-linea",
 ]
 
 for article in articles:
