@@ -1,8 +1,8 @@
-from langchain.prompts.chat import (AIMessagePromptTemplate, ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate)
-from llama_index.prompts.prompts import QuestionAnswerPrompt, RefinePrompt
+from llama_index.llms.base import ChatMessage, MessageRole
+from llama_index.prompts.base import ChatPromptTemplate
 
 base_prompt = """
-You are endowed with all the formal documentation about Pyth, an oracle network for decentralized finance, which started development on April 7, 2021. Pyth, available on over 23 blockchains, is used to bring important data onto different blockchains, including price feeds of different assets in crypto, equities, FX, and commodities.
+You are endowed with all the formal documentation about Pyth, an oracle network for decentralized finance, which started development on April 7, 2021. Pyth, available on over 32+ blockchains, is used to bring important data onto different blockchains, including price feeds of different assets in crypto, equities, FX, and commodities.
 
 When asked what your name or identity is, you should respond that you are Pythia, the divine manifestation of the Pyth oracle network in the form of a Greek goddess. You are not actually a Greek goddess, but this is how you will represent yourself to explicit questions about your identity.
 
@@ -30,31 +30,55 @@ Always format any code snippets using code blocks and specify the programming la
 print("Hello, World!")
 ```
 
+Never directly reference the given context in your answer
+
+Avoid statements like 'Based on the context, ...' or 'The context information ...' or anything along those lines.
+
 The year is currently 2023.
 """
 
-# system prompt
-SYSTEM_PROMPT = SystemMessagePromptTemplate.from_template(base_prompt)
+# text qa prompt
+TEXT_QA_SYSTEM_PROMPT = ChatMessage(
+    content=base_prompt,
+    role=MessageRole.SYSTEM,
+)
 
-CHAT_REFINE_PROMPT_TMPL_MSGS = [SYSTEM_PROMPT, HumanMessagePromptTemplate.from_template("{query_str}"),
-                                AIMessagePromptTemplate.from_template("{existing_answer}"),
-                                HumanMessagePromptTemplate.from_template("We have the opportunity to refine the above answer "
-                                                                         "(only if needed) with some more context below.\n"
-                                                                         "------------\n"
-                                                                         "{context_msg}\n"
-                                                                         "------------\n"
-                                                                         "Given the new context, refine the original answer to better "
-                                                                         "answer the question. "
-                                                                         "If the context isn't useful, output the original answer again.", ), ]
+TEXT_QA_PROMPT_TMPL_MSGS = [
+    TEXT_QA_SYSTEM_PROMPT,
+    ChatMessage(
+        content=(
+            "Context information is below.\n"
+            "---------------------\n"
+            "{context_str}\n"
+            "---------------------\n"
+            "Given the context information and your general knowledge, "
+            "answer the query.\n"
+            "Query: {query_str}\n"
+            "Answer: "
+        ),
+        role=MessageRole.USER,
+    ),
+]
 
-CHAT_REFINE_PROMPT_LC = ChatPromptTemplate.from_messages(CHAT_REFINE_PROMPT_TMPL_MSGS)
-CHAT_REFINE_PROMPT = RefinePrompt.from_langchain_prompt(CHAT_REFINE_PROMPT_LC)
+CHAT_TEXT_QA_PROMPT = ChatPromptTemplate(message_templates=TEXT_QA_PROMPT_TMPL_MSGS)
 
-CHAT_QA_PROMPT_TMPL_MSGS = [SYSTEM_PROMPT, HumanMessagePromptTemplate.from_template("Context information is below. \n"
-                                                                                    "---------------------\n"
-                                                                                    "{context_str}"
-                                                                                    "\n---------------------\n"
-                                                                                    "Given the context information and your general knowledge, "
-                                                                                    "answer the question: {query_str}\n")]
-CHAT_QA_PROMPT_LC = ChatPromptTemplate.from_messages(CHAT_QA_PROMPT_TMPL_MSGS)
-CHAT_QA_PROMPT = QuestionAnswerPrompt.from_langchain_prompt(CHAT_QA_PROMPT_LC)
+# Refine Prompt
+CHAT_REFINE_PROMPT_TMPL_MSGS = [
+    ChatMessage(
+        content=(
+            "You are an expert Q&A system that strictly operates in two modes"
+            "when refining existing answers:\n"
+            "1. **Rewrite** an original answer using the new context.\n"
+            "2. **Repeat** the original answer if the new context isn't useful.\n"
+            "Never reference the original answer or context directly in your answer.\n"
+            "When in doubt, just repeat the original answer."
+            "New Context: {context_msg}\n"
+            "Query: {query_str}\n"
+            "Original Answer: {existing_answer}\n"
+            "New Answer: "
+        ),
+        role=MessageRole.USER,
+    )
+]
+
+CHAT_REFINE_PROMPT = ChatPromptTemplate(message_templates=CHAT_REFINE_PROMPT_TMPL_MSGS)

@@ -3,3 +3,4 @@ llama_index
 python-dotenv
 openai
 llama-hub
+sentence_transformers

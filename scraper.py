@@ -41,6 +41,22 @@ articles = [
     "https://pyth.network/blog/pyth-price-oracle-on-mantle",
     "https://pyth.network/blog/pythians-in-paris-newsletter-43",
     "https://pyth.network/blog/pyth-launches-price-oracles-on-linea",
+    "https://pyth.network/blog/pyth-delivers-high-fidelity-oracles-to-arbitrum-ecosystem",
+    "https://pyth.network/blog/evmos-go-live",
+    "https://pyth.network/blog/jet-launches-defi-first-fixed-rate-lending-with-pyth",
+    "https://pyth.network/blog/pythian-summer-newsletter-44", "https://pyth.network/blog/pyth-monthly-update-july-2023",
+    "https://pyth.network/blog/new-pyth-data-provider-quiver",
+    "https://pyth.network/blog/decentralized-trading-on-mantle-with-fusionx-pyth-case-study",
+    "https://pyth.network/blog/pyth-launches-price-oracles-on-base",
+    "https://pyth.network/blog/stablecoins-stability-in-defi-and-crypto-pyth-price-feeds",
+    "https://pyth.network/blog/pyth-launches-price-oracles-on-sei",
+    "https://pyth.network/blog/sei-what-its-all-about-that-base-newsletter-45",
+    "https://pyth.network/blog/tashi-revolutionizing-borrowing-and-lending-on-evmos-pyth-case-study",
+    "https://pyth.network/blog/new-pyth-data-provider-radix",
+    "https://pyth.network/blog/pyth-price-feeds-now-available-on-scroll-sepolia-testnet",
+    "https://pyth.network/blog/defi-tokens-incentives-freedom-and-governance-pyth-price-feeds",
+    "https://pyth.network/blog/new-mdp-mrgn-research", "https://pyth.network/blog/developer-release-pyth-on-stacks",
+    "https://pyth.network/blog/pyth-price-feeds-now-available-on-wemix",
 ]
 
 for article in articles:
@@ -53,9 +69,11 @@ for article in articles:
     post_title = soup.find("div", class_="container relative z-[2]")
     title_body = post_title.find("h1", class_="h2 max-w-[650px]").text.strip()
 
+    date_body = post_title.find("span", class_="flex items-center gap-1").text.strip()
+
     post_content = soup.find("div", class_="container relative")
     post_body = post_content.find("div", class_="postStyle mx-auto max-w-[800px] pb-12").text.strip()
 
     title_body = re.sub(r'[<>:"/\\|?*]', '', title_body)
     with open(f"data/pyth_blog/{title_body}.txt", mode="w", encoding="utf-8") as article_file:
-        article_file.write(f"{title_body}\n{post_body}")
+        article_file.write(f"{date_body}\n{title_body}\n{post_body}")

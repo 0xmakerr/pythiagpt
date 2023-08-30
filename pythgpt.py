@@ -1,6 +1,8 @@
 import os
 import openai
 import tiktoken
+import logging
+import sys
 from dotenv import load_dotenv
 from threading import Lock
 from llama_index import (SimpleDirectoryReader,
@@ -13,9 +15,16 @@ from llama_index import (SimpleDirectoryReader,
 from llama_hub.github_repo import GithubRepositoryReader, GithubClient
 from llama_index.callbacks import CallbackManager, TokenCountingHandler
 from llama_index.llms import OpenAI
-from base_prompt import CHAT_REFINE_PROMPT, CHAT_QA_PROMPT
+from base_prompt import CHAT_TEXT_QA_PROMPT, CHAT_REFINE_PROMPT
 from llama_index.evaluation import ResponseEvaluator
 from llama_index.indices.postprocessor import SentenceTransformerRerank
+from llama_index.query_engine.router_query_engine import RouterQueryEngine
+from llama_index.selectors.pydantic_selectors import PydanticSingleSelector
+from llama_index.tools.query_engine import QueryEngineTool
+
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+logging.getLogger().handlers = []
+logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
 
 load_dotenv()
 openai.api_key = os.environ["OPENAI_API_KEY"]
@@ -35,10 +44,11 @@ set_global_service_context(service_context)
 def build_index():
     global service_context
 
-    combined_documents = []
+    general_documents = []
+    code_documents = []
     # load directory documents
     directory_document = SimpleDirectoryReader('./data', recursive=True).load_data()
-    combined_documents += directory_document
+    general_documents += directory_document
     # load github documents
     download_loader("GithubRepositoryReader")
     github_client = GithubClient(GITHUB_API_KEY)
@@ -47,19 +57,32 @@ def build_index():
     branch = "main"
     # build documents out of all repos
     for repo in repos:
-        loader = GithubRepositoryReader(github_client,
-                                        owner=owner,
-                                        repo=repo,
-                                        filter_directories=(["images"], GithubRepositoryReader.FilterType.EXCLUDE),
-                                        verbose=False,
-                                        concurrent_requests=10,
-                                        )
-        document = loader.load_data(branch=branch)
-        combined_documents += document
-    # build index
-    index = VectorStoreIndex.from_documents(combined_documents, service_context=service_context)
-    # store index in ./storage
-    index.storage_context.persist()
+        if repo == "documentation":
+            loader = GithubRepositoryReader(github_client,
+                                            owner=owner,
+                                            repo=repo,
+                                            filter_directories=(["images"], GithubRepositoryReader.FilterType.EXCLUDE),
+                                            verbose=False,
+                                            concurrent_requests=10,
+                                            )
+            document = loader.load_data(branch=branch)
+            general_documents += document
+        else:
+            loader = GithubRepositoryReader(github_client,
+                                            owner=owner,
+                                            repo=repo,
+                                            filter_directories=(["images"], GithubRepositoryReader.FilterType.EXCLUDE),
+                                            verbose=False,
+                                            concurrent_requests=10,
+                                            )
+            document = loader.load_data(branch=branch)
+            code_documents += document
+    # build index and store it
+    general_index = VectorStoreIndex.from_documents(general_documents, service_context=service_context, show_progress=True)
+    general_index.storage_context.persist(persist_dir="./storage/general_index")
+
+    code_index = VectorStoreIndex.from_documents(code_documents, service_context=service_context, show_progress=True)
+    code_index.storage_context.persist(persist_dir="./storage/code_index")
 
 
 # used to add documents to existing stored index
@@ -95,18 +118,33 @@ def pyth_gpt(message):
 
     with thread_lock:
         # rebuild storage context
-        storage_context = StorageContext.from_defaults(persist_dir="./storage")
+        general_storage_context = StorageContext.from_defaults(persist_dir="./storage/general_index")
+        code_storage_context = StorageContext.from_defaults(persist_dir="./storage/code_index")
         # load index
-        index = load_index_from_storage(storage_context, service_context=service_context)
+        general_index = load_index_from_storage(general_storage_context, service_context=service_context)
+        code_index = load_index_from_storage(code_storage_context, service_context=service_context)
 
         rerank = SentenceTransformerRerank(model="cross-encoder/ms-marco-MiniLM-L-2-v2", top_n=3)
         # query the index
-        query_engine = index.as_query_engine(text_qa_template=CHAT_QA_PROMPT,
-                                             refine_template=CHAT_REFINE_PROMPT,
-                                             similarity_top_k=10,
-                                             streaming=False,
-                                             service_context=service_context,
-                                             node_postprocessors=[rerank])
+        general_query_engine = general_index.as_query_engine(text_qa_template=CHAT_TEXT_QA_PROMPT,
+                                                             refine_template=CHAT_REFINE_PROMPT,
+                                                             similarity_top_k=10,
+                                                             streaming=False,
+                                                             service_context=service_context,
+                                                             node_postprocessors=[rerank])
+
+        code_query_engine = code_index.as_query_engine(text_qa_template=CHAT_TEXT_QA_PROMPT,
+                                                       refine_template=CHAT_REFINE_PROMPT,
+                                                       similarity_top_k=10,
+                                                       streaming=False,
+                                                       service_context=service_context,
+                                                       node_postprocessors=[rerank])
+
+        general_vector_tool = QueryEngineTool.from_defaults(query_engine=general_query_engine, description="Useful for retrieving general context related to the data source", )
+        code_vector_tool = QueryEngineTool.from_defaults(query_engine=code_query_engine, description="Useful specifically for coding questions related to the data source ", )
+
+        query_engine = RouterQueryEngine(selector=PydanticSingleSelector.from_defaults(),
+                                         query_engine_tools=[general_vector_tool, code_vector_tool])
         # enter your prompt
         response = query_engine.query(message)
         # define evaluator
