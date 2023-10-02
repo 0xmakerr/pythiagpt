@@ -16,7 +16,6 @@ from llama_hub.github_repo import GithubRepositoryReader, GithubClient
 from llama_index.callbacks import CallbackManager, TokenCountingHandler
 from llama_index.llms import OpenAI
 from base_prompt import CHAT_TEXT_QA_PROMPT, CHAT_REFINE_PROMPT
-from llama_index.evaluation import ResponseEvaluator
 from llama_index.indices.postprocessor import SentenceTransformerRerank
 from llama_index.query_engine.router_query_engine import RouterQueryEngine
 from llama_index.selectors.pydantic_selectors import PydanticSingleSelector
@@ -147,11 +146,6 @@ def pyth_gpt(message):
                                          query_engine_tools=[general_vector_tool, code_vector_tool])
         # enter your prompt
         response = query_engine.query(message)
-        # define evaluator
-        evaluator = ResponseEvaluator(service_context=service_context)
-        # evaluate if the response matches any source context (returns "YES"/"NO")
-        eval_result = evaluator.evaluate(response)
-        print("Response matches any source context: " + str(eval_result))
         # token counter
         print('Embedding Tokens: ', token_counter.total_embedding_token_count, '\n',
               'LLM Prompt Tokens: ', token_counter.prompt_llm_token_count, '\n',
